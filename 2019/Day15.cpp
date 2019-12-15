@@ -245,6 +245,23 @@ struct Robot {
             std::cout << '\n';
         }
     }
+    void draw_path() {
+        auto dtox = distances(position);
+        auto xtod = distances(target);
+        auto path_len = dtox[target.imag()*size+target.real()];
+        std::array chars = {'#',' ','X','?'};
+        for(int y = 0; y < size; ++y) {
+            for(int x = 0; x < size; ++x) {
+                auto distance_pos = y*size + x;
+
+                if(pos{x,y} == position) std::cout << 'D';
+                else if(pos{x,y} == target) std::cout << 'X';
+                else if(dtox[distance_pos] == path_len - xtod[distance_pos]) std::cout << '.';
+                else std::cout << chars[lookup({x,y})];
+            }
+            std::cout << '\n';
+        }
+    }
 };
 
 int main() {
@@ -253,5 +270,5 @@ int main() {
     std::cout << "Part 1: " << r.path_length() << '\n';
     auto distances = r.distances(r.target);
     std::cout << "Part 2: " << *std::max_element(distances.begin(),distances.end()) << '\n';
-    r.draw();
+    r.draw_path();
 }
