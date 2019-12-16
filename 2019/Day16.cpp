@@ -42,6 +42,7 @@ Arr fft(Arr a) {
             //fft can start at current digit since all before are 0, hence we can do this in-place
             a[current_digit] = fft(current_digit+1,a.begin()+current_digit, a.end());
         }
+        //Second half is a reverted partial_sum
         fft_latter_half(a.rbegin(),a.rbegin()+a.size()/2);
     }
     return a;
@@ -49,7 +50,7 @@ Arr fft(Arr a) {
 
 template<typename It>
 auto to_num(It begin, int num_digits) {
-	return std::accumulate(begin,begin+num_digits,0,[](auto acc,auto next){return acc*10+next;});
+    return std::accumulate(begin,begin+num_digits,0,[](auto acc,auto next){return acc*10+next;});
 }
 
 int main() {
@@ -58,22 +59,18 @@ int main() {
     std::transform(input.begin(),input.end(),ds.begin(),[](char c) {return c - '0';});
 
     auto fft_ds = fft(ds);
-    std::cout << "Part 1: " << to_num(fft_ds.begin(),8) << '\n';;
+    std::cout << "Part 1: " << to_num(fft_ds.begin(),8) << '\n';
 
     std::vector<int> next(input.size()*10000);
     for(int i = 0; i < next.size(); ++i) {
         next[i] = ds[i%ds.size()];
     }
 
-	auto loc = to_num(next.begin(),7);
-	assert(loc >= next.size()/2);
+    auto loc = to_num(next.begin(),7);
+    assert(loc >= next.size()/2);
     auto rend = next.rbegin() + (next.size() - loc);
-	for(int phase = 0; phase < 100; ++phase) {
+    for(int phase = 0; phase < 100; ++phase) {
         fft_latter_half(next.rbegin(),rend);
-	}
-	std::cout << "Part 2: ";
-    for(int current_digit = 0; current_digit < 8; ++current_digit) {
-        std::cout << next[loc+current_digit];
     }
-    std::cout << '\n';
+    std::cout << "Part 2: " << to_num(next.begin()+loc,8) << '\n';
 }
