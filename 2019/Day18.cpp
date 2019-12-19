@@ -6,6 +6,7 @@
 #include <queue>
 #include <string_view>
 #include <unordered_map>
+#include <map>
 #include <algorithm>
 #include <optional>
 #include <chrono>
@@ -41,6 +42,7 @@ struct Coord {
     bool operator==(Coord o) {return x==o.x and y==o.y;}
     Coord operator*(Coord o) const {auto res = std::complex<int>{x,y}*std::complex<int>{o.x,o.y}; return {res.real(),res.imag()};}
     Coord& operator*=(Coord o) {*this = *this * o; return *this;}
+    bool operator<(Coord o) const {return std::tie(x,y) < std::tie(o.x,o.y);}
 };
 
 constexpr std::array<Coord,4> directions{{{1,0},{-1,0},{0,1},{0,-1}}};
@@ -87,6 +89,7 @@ struct Maze {
                 tiles.push_back(t);
             }
         }
+        remove_dead_ends();
     }
     Tile& get(Coord c) {
         return tiles[c.y*width+c.x];
@@ -102,16 +105,8 @@ struct Maze {
             auto& neighbor = get(c+add);
             neighbor.open_directions.reset(opposite_coord(d));
         });
+        t.tile = '#';
         t.open_directions &= 0;
-    }
-
-    void print() {
-        for(int y = 0; y < height; ++y) {
-            for(int x = 0; x < width; ++x) {
-                std::cout << (*this)[{x,y}].tile;
-            }
-            std::cout << '\n';
-        }
     }
 
     template<typename F>
@@ -123,19 +118,111 @@ struct Maze {
         }
     }
 
+    template<typename F>
+    void for_each_tile(F&& f) {
+        for(int y = 0; y < height; ++y) {
+            for(int x = 0; x < width; ++x) {
+                f(Coord{x,y},get(Coord{x,y}));
+            }
+        }
+    }
+
+    void remove_dead_ends() {
+        for_each_tile([this](Coord tc, auto&&) {
+            while(get(tc).open_directions.count() == 1 and not get(tc).isKey()) {
+                Coord next;
+                get(tc).for_all_dirs([&](int,Coord dir) {
+                    next = tc+dir;
+                });
+                close(tc);
+                tc = next;
+            }
+        });
+    }
+
     std::vector<Tile> tiles;
     std::size_t width, height, num_keys=0;
     std::vector<Coord> start;
 };
 
-struct NextStates {
-    struct Path {
-        std::bitset<26> needed_keys;
-        std::size_t length;
-        bool possible(std::bitset<26> keys) const {
-            return (needed_keys & keys) == needed_keys;
+struct Path {
+    std::bitset<26> needed_keys;
+    std::size_t length;
+    bool possible(std::bitset<26> keys) const {
+        return (needed_keys & keys) == needed_keys;
+    }
+    Path operator+(Path o) {
+        return {needed_keys | o.needed_keys, length+o.length};
+    }
+};
+
+struct CompressedMaze {
+    struct Node {
+        Tile dirs;
+        std::array<std::pair<Path,int>,4> connections;
+        template<typename F>
+        void for_all_paths(F&& f) const {
+            dirs.for_all_dirs([&](int dir,auto&&) {
+                auto& [path,next] = connections[dir];
+                f(path,next);
+            });
         }
     };
+    std::vector<Node> nodes;
+    std::vector<int> start;
+    int num_keys;
+};
+
+CompressedMaze compress(const Maze& m) {
+    std::map<Coord,int> coord_to_node;
+    std::vector<CompressedMaze::Node> nodes;
+    m.for_each_tile([&](auto coord, auto& t) {
+        if(t.tile == '@' or t.isKey() or t.open_directions.count() > 2) {
+            coord_to_node[coord] = nodes.size();
+            nodes.push_back({t});
+        }
+    });
+    for(auto [coord,n] : coord_to_node) {
+        auto& node = nodes[n];
+        node.dirs.for_all_dirs([&,coord=coord,n=n](const int dir, Coord dirc) {
+            //If we did this direction before
+            if(node.connections[dir].first.length > 0) return;
+
+            Coord current = coord+dirc;
+            int lastdir = dir;
+            Path p = {0,1};
+
+            while(not (m[current].tile == '@') and not m[current].isKey() and m[current].open_directions.count() == 2) {
+                if(m[current].isDoor()) {
+                    p.needed_keys.set(m[current].tile-'A');
+                }
+                int newdir = 0;
+                m[current].for_all_dirs([&](int d, Coord ndirc) {
+                    if(d != opposite_coord(lastdir)) {
+                        newdir = d;
+                        current += ndirc;
+                    }
+                });
+                p.length++;
+                lastdir = newdir;
+            }
+            if(m[current].isDoor()) {
+                p.needed_keys.set(m[current].tile-'A');
+            }
+
+            auto& neighbor_id = coord_to_node.at(current);
+            node.connections[dir] = {p,neighbor_id};
+            nodes[neighbor_id].connections[opposite_coord(lastdir)] = {p,n};
+        });
+    }
+    std::vector<int> start(m.start.size());
+    std::transform(m.start.begin(),m.start.end(),start.begin(),[&](Coord c) {
+        return coord_to_node.at(c);
+    });
+    return {nodes,start,m.num_keys};
+}
+
+struct NextStates {
 
     struct PathGroup {
         std::vector<Path> paths;
@@ -169,49 +256,49 @@ struct NextStates {
     std::array<PathGroup,26> toKey;
 };
 
-NextStates fromKey(const Maze& m, std::array<Coord,26> key_locs, Coord start, int k) {
-    //modified BFS, allows multiple runs over the same coordinates if required keys aren't subsumed
-    std::vector<NextStates::PathGroup> grid(m.width*m.height);
-    auto lookup = [&](Coord c) -> NextStates::PathGroup& {return grid[c.y*m.width+c.x];};
+NextStates fromKey(const CompressedMaze& m, std::array<int,26> key_locs, int start, int k) {
+    std::vector<NextStates::PathGroup> node_paths(m.nodes.size());
 
-    auto start_path = NextStates::Path{1<<k,0};
+    struct State {
+        int prev;
+        int current;
+        Path p;
+    };
+    std::queue<State> states;
+    states.push({-1,start,Path{1<<k,0}});
 
-    //Direction to parent, next coordinate, current path stats
-    using BFS_state = std::tuple<int,Coord,NextStates::Path>;
-    std::queue<BFS_state> q;
-    q.emplace(4,start,start_path);
-    while(not q.empty()) {
-        auto [dir,coord,path] = q.front();
-        q.pop();
-        auto& t = m[coord];
-        if(t.isDoor()) {
-            path.needed_keys.set(t.tile-'A');
-        }
-        if(not lookup(coord).update(path)) continue;
-        if(t.isKey()) {
-            path.needed_keys.set(t.tile-'a');
-        }
-        path.length++;
-        m[coord].for_all_dirs([&q,pdir=dir,coord=coord,path=path](int dir, Coord add) {
-            if(pdir != dir) {
-                q.emplace(opposite_coord(dir),coord+add,path);
+    while(not states.empty()) {
+        auto s = states.front();
+        states.pop();
+        if(not node_paths[s.current].update(s.p)) continue;
+        auto& node = m.nodes[s.current];
+        if(node.dirs.isKey())
+            s.p.needed_keys.set(node.dirs.tile-'a');
+        node.for_all_paths([&](Path p, int next) {
+            if(next != s.prev) {
+                states.push({s.current,next,s.p+p});
             }
         });
     }
 
     NextStates ret;
-    std::transform(key_locs.begin(),key_locs.end(),ret.toKey.begin(),lookup);
+    std::transform(key_locs.begin(),key_locs.end(),ret.toKey.begin(),[&](int loc){return node_paths[loc];});
 
     return ret;
 }
 
-std::array<NextStates,30> precompute_paths(const Maze& m) {
-    std::array<Coord,26> key_locs;
-    m.for_each_tile([&](auto coord, auto& t) {
-        if(t.isKey()) {
-            key_locs[t.tile-'a'] = coord;
+auto get_key_locs(const CompressedMaze& m) {
+    std::array<int,26> key_locs;
+    for(int i = 0; i < m.nodes.size(); ++i) {
+        if(m.nodes[i].dirs.isKey()) {
+            key_locs[m.nodes[i].dirs.tile-'a'] = i;
         }
-    });
+    }
+    return key_locs;
+}
+
+std::array<NextStates,30> precompute_paths(const CompressedMaze& m) {
+    auto key_locs = get_key_locs(m);
 
     std::array<NextStates,30> key_paths;
     for(int i = 0; i < m.num_keys; ++i) {
@@ -250,7 +337,7 @@ struct SearchResult {
     std::size_t length, states, states_expanded;
 };
 
-SearchResult search(const Maze& m, const std::array<NextStates,30>& paths) {
+SearchResult find_all_keys(const CompressedMaze& m, const std::array<NextStates,30>& paths) {
     //Utility
     auto for_each_path = [&](AsState s,auto&& f) {
         for(auto current_bot = 0; current_bot < m.start.size(); ++current_bot) {
@@ -315,15 +402,18 @@ SearchResult search(const Maze& m, const std::array<NextStates,30>& paths) {
     return {};
 }
 
-void solve(const Maze& m) {
+auto solve(const CompressedMaze& m) {
     auto paths = precompute_paths(m);
     
-    auto [length,explored,expanded] = search(m,paths);
+    return find_all_keys(m,paths);
+}
+
+void printResult(SearchResult r) {
+    auto [length,explored,expanded] = r;
     std::cout << length << '\n';
     std::cout << "States explored: " << explored << '\n';
     std::cout << "States expanded: " << expanded << '\n';
 }
-
 
 std::string_view input = R"(#################################################################################
 #...#z..#.....#...#...#.........#...#...#.............................#...#.....#
@@ -408,21 +498,21 @@ std::string_view input = R"(####################################################
 #################################################################################)";
 
 int main() {
-    Maze m(input);
-    m.print();
-    auto t = time([&]{
-        std::cout << "Part 1: ";
-        solve(m);
+    auto t = time([]{
+        Maze m(input);
+        std::cout << "Part 1: "; printResult(solve(compress(m)));
         auto part1_start = m.start[0];
         m.start = {};
         for(int x = part1_start.x-1; x <= part1_start.x+1; ++x) {
             for(int y = part1_start.y-1; y <= part1_start.y+1; ++y) {
                 if(x == part1_start.x or y == part1_start.y) m.close({x,y});
-                else m.start.push_back({x,y});
+                else {
+                    m.start.push_back({x,y});
+                    m.get({x,y}).tile = '@';
+                }
             }
         }
-        std::cout << "Part 2: ";
-        solve(m);
+        std::cout << "Part 2: ";printResult(solve(compress(m)));
     });
     std::cout << "Time: " << t << "s\n";
 }
