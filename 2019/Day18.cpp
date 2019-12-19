@@ -8,6 +8,18 @@
 #include <unordered_map>
 #include <algorithm>
 #include <optional>
+#include <chrono>
+
+template<typename F>
+double time(F&& f, int num_tries=1) {
+    auto start = std::chrono::high_resolution_clock::now();
+    for(int i = 0; i < num_tries; ++i) {
+        f();
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end-start;
+    return diff.count()/num_tries;
+}
 
 std::vector<std::string_view> split(std::string_view in, char delim) {
     std::vector<std::string_view> ret;
@@ -68,9 +80,10 @@ struct Maze {
                 } else if(t.isKey()) {
                     num_keys++;
                 }
-                for(int i=0; i < 4; ++i) {
-                    t.open_directions[i] = lookup(current+directions[i]) != '#';
-                }
+                if(t.tile != '#')
+                    for(int i=0; i < 4; ++i) {
+                        t.open_directions[i] = lookup(current+directions[i]) != '#';
+                    }
                 tiles.push_back(t);
             }
         }
@@ -156,14 +169,12 @@ struct NextStates {
     std::array<PathGroup,26> toKey;
 };
 
-NextStates fromKey(const Maze& m, std::array<Coord,26> key_locs, Coord start) {
+NextStates fromKey(const Maze& m, std::array<Coord,26> key_locs, Coord start, int k) {
     //modified BFS, allows multiple runs over the same coordinates if required keys aren't subsumed
     std::vector<NextStates::PathGroup> grid(m.width*m.height);
     auto lookup = [&](Coord c) -> NextStates::PathGroup& {return grid[c.y*m.width+c.x];};
 
-    //This will be 26 for regular starting positions, which makes the path start at a 0'd out current_keys
-    auto key_num = std::find(key_locs.begin(),key_locs.end(),start) - key_locs.begin();
-    auto start_path = NextStates::Path{1<<key_num,0};
+    auto start_path = NextStates::Path{1<<k,0};
 
     //Direction to parent, next coordinate, current path stats
     using BFS_state = std::tuple<int,Coord,NextStates::Path>;
@@ -194,9 +205,27 @@ NextStates fromKey(const Maze& m, std::array<Coord,26> key_locs, Coord start) {
     return ret;
 }
 
+std::array<NextStates,30> precompute_paths(const Maze& m) {
+    std::array<Coord,26> key_locs;
+    m.for_each_tile([&](auto coord, auto& t) {
+        if(t.isKey()) {
+            key_locs[t.tile-'a'] = coord;
+        }
+    });
+
+    std::array<NextStates,30> key_paths;
+    for(int i = 0; i < m.num_keys; ++i) {
+        key_paths[i] = fromKey(m,key_locs,key_locs[i],i);
+    }
+    for(int i = 0; i < m.start.size(); ++i) {
+        key_paths[26+i] = fromKey(m,key_locs,m.start[i],i+26);
+    }
+    return key_paths;
+}
+
 struct AsState {
     std::bitset<26> keys_picked_up;
-    std::array<char,4> current_keys={'a'+26,'a'+27,'a'+28,'a'+29};
+    std::array<int,4> current_keys={26,27,28,29};
     bool operator==(AsState o) const {
         return keys_picked_up==o.keys_picked_up and current_keys == o.current_keys;
     }
@@ -210,96 +239,89 @@ namespace std {
             std::bitset<26+30> combined(s.keys_picked_up.to_ulong());
             combined <<= 30;
             for(int i = 0; i < 4; ++i) {
-                combined.set(s.current_keys[i]-'a');
+                combined.set(s.current_keys[i]);
             }
             return std::hash<decltype(combined)>{}(combined);
         }
     };
 }
 
-void solve(const Maze& m) {
-    std::array<Coord,26> key_locs;
-    m.for_each_tile([&](auto coord, auto& t) {
-        if(t.isKey()) {
-            key_locs[t.tile-'a'] = coord;
-        }
-    });
-    auto num_keys = std::find(key_locs.begin(),key_locs.end(),Coord{}) - key_locs.begin();
+struct SearchResult {
+    std::size_t length, states, states_expanded;
+};
 
-
-    std::array<NextStates,30> key_paths;
-    for(int i = 0; i < num_keys; ++i) {
-        key_paths[i] = fromKey(m,key_locs,key_locs[i]);
-    }
-    for(int i = 0; i < m.start.size(); ++i) {
-        key_paths[26+i] = fromKey(m,key_locs,m.start[i]);
-    }
-    
-    //Heuristic is max length of this key to any other non-picked-up key
-    std::unordered_map<AsState,std::size_t> heuristics_memo;
-    auto heuristic = [&](AsState s) {
-        if(heuristics_memo.contains(s)) return heuristics_memo[s];
-        std::size_t max = 0;
-        for(auto current_key : s.current_keys) {
-            auto& paths = key_paths[current_key-'a'];
-            for(int i = 0; i < num_keys; ++i) {
-                if(not s.keys_picked_up[i]) {
-                    auto shortest = paths.toKey[i].shortest(s.keys_picked_up);
+SearchResult search(const Maze& m, const std::array<NextStates,30>& paths) {
+    //Utility
+    auto for_each_path = [&](AsState s,auto&& f) {
+        for(auto current_bot = 0; current_bot < m.start.size(); ++current_bot) {
+            auto& paths_for_bot = paths[s.current_keys[current_bot]];
+            for(int key = 0; key < m.num_keys; ++key) {
+                if(not s.keys_picked_up[key]) {
+                    auto shortest = paths_for_bot.toKey[key].shortest(s.keys_picked_up);
                     if(shortest.has_value()) {
-                        max = std::max(max,shortest->length);
+                        f(current_bot,key,*shortest);
                     }
                 }
             }
         }
-        heuristics_memo[s] = max;
+    };
+
+    //Heuristic is max path length of state to any other non-picked-up key
+    auto heuristic = [&,memo=std::unordered_map<AsState,std::size_t>{}](AsState s) mutable {
+        if(memo.contains(s)) return memo[s];
+        std::size_t max = 0;
+        for_each_path(s,[&](int,int,auto p) {
+            max = std::max(max,p.length);
+        });
+        memo[s] = max;
         return max;
     };
-    std::bitset<26> goal(std::string(num_keys,'1'));
+    std::bitset<26> goal(std::string(m.num_keys,'1'));
+
     std::unordered_map<AsState,std::size_t> scores;
+
     using queue_type = std::pair<std::size_t,AsState>;
     //Reverse ordering bc smallest needs to go out first
     auto cmp = [](auto a, auto b) {return a.first > b.first;};
     std::priority_queue<queue_type,std::vector<queue_type>,decltype(cmp)> AsQueue(cmp);
+    
     auto startState = AsState{0};
-    auto score = heuristic(startState);
-    AsQueue.emplace(score,startState);
+    AsQueue.emplace(heuristic(startState),startState);
     scores[startState] = 0;
     
     std::size_t num_states = 0;
     std::size_t states_expanded = 1;
+
     while(not AsQueue.empty()) {
         auto [fScore,state] = AsQueue.top();
         AsQueue.pop();
         if(fScore-heuristic(state) > scores[state]) continue;
         num_states++;
         if(state.keys_picked_up == goal) {
-            std::cout << scores[state] << '\n';
-            break;
+            return {scores[state],num_states,states_expanded};
         }
         auto current_len = scores[state];
-        for(int current = 0; current < m.start.size(); ++current) {
-            auto& paths = key_paths[state.current_keys[current]-'a'];
-            for(int i = 0; i < num_keys; ++i) {
-                if(not state.keys_picked_up[i]) {
-                    auto shortest = paths.toKey[i].shortest(state.keys_picked_up);
-                    if(shortest.has_value()) {
-                        auto distance = shortest->length;
-                        auto neighbor = AsState{state.keys_picked_up,state.current_keys};
-                        neighbor.keys_picked_up.set(i);
-                        neighbor.current_keys[current] = 'a'+i;
-                        if(not scores.contains(neighbor) or current_len+distance < scores[neighbor]) {
-                            scores[neighbor] = current_len+distance;
-                            AsQueue.emplace(current_len+distance+heuristic(neighbor),neighbor);
-                            states_expanded++;
-                        }
-                    }
-                }
+        for_each_path(state, [&,state=state](int bot, int key, auto path) {
+            auto neighbor = AsState{state.keys_picked_up,state.current_keys};
+            neighbor.keys_picked_up.set(key);
+            neighbor.current_keys[bot] = key;
+            if(not scores.contains(neighbor) or current_len+path.length < scores[neighbor]) {
+                scores[neighbor] = current_len+path.length;
+                AsQueue.emplace(current_len+path.length+heuristic(neighbor),neighbor);
+                states_expanded++;
             }
-        }
+        });
     }
-    std::cout << "States explored: " << num_states << '\n';
-    std::cout << "States expanded: " << states_expanded << '\n';
+    return {};
+}
+
+void solve(const Maze& m) {
+    auto paths = precompute_paths(m);
     
+    auto [length,explored,expanded] = search(m,paths);
+    std::cout << length << '\n';
+    std::cout << "States explored: " << explored << '\n';
+    std::cout << "States expanded: " << expanded << '\n';
 }
 
 
@@ -388,16 +410,19 @@ std::string_view input = R"(####################################################
 int main() {
     Maze m(input);
     m.print();
-    std::cout << "Part 1: ";
-    solve(m);
-    auto part1_start = m.start[0];
-    m.start = {};
-    for(int x = part1_start.x-1; x <= part1_start.x+1; ++x) {
-        for(int y = part1_start.y-1; y <= part1_start.y+1; ++y) {
-            if(x == part1_start.x or y == part1_start.y) m.close({x,y});
-            else m.start.push_back({x,y});
+    auto t = time([&]{
+        std::cout << "Part 1: ";
+        solve(m);
+        auto part1_start = m.start[0];
+        m.start = {};
+        for(int x = part1_start.x-1; x <= part1_start.x+1; ++x) {
+            for(int y = part1_start.y-1; y <= part1_start.y+1; ++y) {
+                if(x == part1_start.x or y == part1_start.y) m.close({x,y});
+                else m.start.push_back({x,y});
+            }
         }
-    }
-    std::cout << "Part 2: ";
-    solve(m);
+        std::cout << "Part 2: ";
+        solve(m);
+    });
+    std::cout << "Time: " << t << "s\n";
 }
