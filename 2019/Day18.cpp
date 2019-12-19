@@ -129,7 +129,7 @@ struct Maze {
 
     void remove_dead_ends() {
         for_each_tile([this](Coord tc, auto&&) {
-            while(get(tc).open_directions.count() == 1 and not get(tc).isKey()) {
+            while(get(tc).open_directions.count() == 1 and not (get(tc).isKey() or get(tc).tile == '@')) {
                 Coord next;
                 get(tc).for_all_dirs([&](int,Coord dir) {
                     next = tc+dir;
@@ -177,7 +177,7 @@ CompressedMaze compress(const Maze& m) {
     std::map<Coord,int> coord_to_node;
     std::vector<CompressedMaze::Node> nodes;
     m.for_each_tile([&](auto coord, auto& t) {
-        if(t.tile == '@' or t.isKey() or t.open_directions.count() > 2) {
+        if(t.tile == '@' or t.isKey() or t.open_directions.count() > 2 or t.open_directions.count() == 1) {
             coord_to_node[coord] = nodes.size();
             nodes.push_back({t});
         }
@@ -192,7 +192,7 @@ CompressedMaze compress(const Maze& m) {
             int lastdir = dir;
             Path p = {0,1};
 
-            while(not (m[current].tile == '@') and not m[current].isKey() and m[current].open_directions.count() == 2) {
+            while(not coord_to_node.contains(current)) {
                 if(m[current].isDoor()) {
                     p.needed_keys.set(m[current].tile-'A');
                 }
