@@ -222,6 +222,112 @@ struct Maze {
     bool recursive = false;
 };
 
+struct CompressedMaze {
+    struct Path {
+        int length;
+        int level_diff;
+    };
+    struct Node {
+        std::map<Coord,std::pair<Path,int>> connections;
+        template<typename F>
+        void for_all_paths(F&& f) const {
+            for(auto& [coord,data] : connections) {
+                auto& [path,next] = data;
+                f(path,next);
+            };
+        }
+    };
+    std::vector<Node> nodes;
+    int start;
+    int end;
+};
+
+CompressedMaze compress(Maze m) {
+    m.recursive = true;
+    std::map<Coord,int> coord_to_node;
+    std::vector<CompressedMaze::Node> nodes;
+    m.for_each_tile([&](auto coord, auto& t) {
+        if(coord == m.start or coord == m.end or t.open_directions.count() > 2) {
+            coord_to_node[coord] = nodes.size();
+            nodes.push_back({});
+        }
+    });
+    
+    for(auto [coord,n] : coord_to_node) {
+        auto& node = nodes[n];
+        if(coord == m.start or coord == m.end) {
+            //Skip these bc they don't have actual portals behind them
+            continue;
+        }
+        Coord ini = coord;
+        ini.level = m.portals.size(); //Ensure we can take all portals if needed to reach a neighboring node
+
+        m.for_each_neighbor(ini,[&,n=n](Coord ini_neighbor) {
+            //If we hit this direction from the other side before
+            if(node.connections[{ini_neighbor.x,ini_neighbor.y}].first.length > 0) return;
+
+            Coord current = ini_neighbor;
+            Coord last = ini;
+            
+            CompressedMaze::Path p = {1,current.level-last.level};
+            int total = 300;
+
+            while(not coord_to_node.contains({current.x,current.y})) {
+                Coord n;
+                m.for_each_neighbor(current,[&](Coord next) {
+                    if(next != last) {
+                        n = next;
+                    }
+                });
+                last = current;
+                current = n;
+                p.length++;
+                p.level_diff += (current.level - last.level);
+            }
+            auto& neighbor_id = coord_to_node.at({current.x,current.y});
+            node.connections[{ini_neighbor.x,ini_neighbor.y}] = {p,neighbor_id};
+            p.level_diff *= -1; //Level difference inverts
+            nodes[neighbor_id].connections[{last.x,last.y}] = {p,n};
+        });
+    }
+    return {nodes,coord_to_node.at(m.start),coord_to_node.at(m.end)};
+}
+
+int shortest_path(const CompressedMaze& m, bool recursive) {
+    struct BFS_Node {
+        int node;
+        int level;
+        bool operator<(BFS_Node o) const {return std::tie(level,node) < std::tie(o.level,o.node);}
+    };
+    std::map<BFS_Node, int> costs;
+    auto lookup = [&](BFS_Node n) -> int& {
+        if(not recursive) n.level = 0;
+        auto res = costs.try_emplace(n,std::numeric_limits<int>::max());
+        return res.first->second;
+    };
+    auto end = BFS_Node{m.end,0};
+
+    using queue_elem = std::pair<int,BFS_Node>;
+    std::priority_queue<queue_elem,std::vector<queue_elem>,std::greater<queue_elem>> q;
+    q.push({0,BFS_Node{m.start,0}});
+    while(not q.empty()) {
+        auto [len,current] = q.top();
+        q.pop();
+        if(lookup(current) < len) continue;
+        if(lookup(end) < len) continue;
+        lookup(current) = len;
+        m.nodes[current.node].for_all_paths([&,len=len,level=current.level](auto p, int next){
+            auto nlevel = level+p.level_diff;
+            if(recursive) {
+                if(nlevel < 0) return;
+                if(nlevel != 0 and (next == m.start or next == m.end)) return;
+            }
+            q.push({len+p.length,BFS_Node{next,nlevel}});
+        });
+    }
+    return lookup(end);
+}
+
 int shortest_path(const Maze& m) {
     std::map<Coord,int> lengths;
     auto cost = [&](Coord c) -> int& {
@@ -371,10 +477,29 @@ JH....#.....#.......#.#...#......EV                                             
                                        G     K       B       L   Z         L     W                                         )";
 
 
+
 int main() {
     Maze m(input);
-    m.draw();
+    auto c = compress(m);
+    //m.draw();
     std::cout << "Part 1: " << shortest_path(m) << '\n';
+    std::cout << "Compressed 1: " << shortest_path(c,false) << '\n';
+    auto t1 = time([&]{
+        shortest_path(m);
+    },100);
+    auto t1_c = time([&]{
+        shortest_path(compress(m),false);
+    },1000);
     m.recursive = true;
     std::cout << "Part 2: " << shortest_path(m) << '\n';
+    std::cout << "Compressed 2: " << shortest_path(c,true) << '\n';
+    auto t2 = time([&]{
+        shortest_path(m);
+    },10);
+    auto t2_c = time([&]{
+        shortest_path(compress(m),true);
+    },1000);
+    std::cout << "\tUncompressed\tCompressed\n";
+    std::cout << "1\t" << t1*1000 << "ms\t" << t1_c*1000 << "ms\n";
+    std::cout << "2\t" << t2*1000 << "ms\t" << t2_c*1000 << "ms\n";
 }
