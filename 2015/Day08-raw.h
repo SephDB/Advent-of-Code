@@ -1,6 +1,7 @@
 #include <string_view>
 //Escaped has all \x's changed to \xaas in case the third character is a valid hexadecimal
 //This makes sure C++'s parser escapes it correctly as two characters instead of one(and warning on "escape sequence out of range)
+// s/\\x[0-9a-f]{3}/\\xaas/g
 std::string_view raw = R"("azlgxdbljwygyttzkfwuxv"
 "v\xfb\"lgs\"kvjfywmut\x9cr"
 "merxdhj"
