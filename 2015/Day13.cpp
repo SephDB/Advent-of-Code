@@ -95,7 +95,7 @@ int happiness(const std::vector<int>& arrangement, const Pairs& ps) {
 int happiness2(const std::vector<int>& arrangement, const Pairs& ps) {
     //Inserting yourself into an arrangement by increasing the happiness the most(or decreasing it the least) means breaking up the lowest happiness connection
     int total = 0;
-    int min = ps[{arrangement[0],arrangement[1]}];
+    int min = ps[{arrangement.front(),arrangement.back()}];
     for(int i = 0; i < arrangement.size()-1; ++i) {
         total += ps[{arrangement[i],arrangement[i+1]}];
         min = std::min(min,ps[{arrangement[i],arrangement[i+1]}]);
