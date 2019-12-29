@@ -22,7 +22,7 @@ bool nice(std::string_view s) {
     //At least three vowels
     return std::count_if(s.begin(),s.end(),[](char c) {
             std::string_view vowels = "aeiou";
-            return std::find(vowels.begin(),vowels.end(),c) != vowels.end();
+            return vowels.find(c) != vowels.npos;
         }) >= 3
         and
         //a pair
@@ -30,7 +30,8 @@ bool nice(std::string_view s) {
         and 
         //Can't find "ab", "cd", "pq" or "xy". Note how the second of each of these is one ahead in the alphabet ;)
         std::adjacent_find(s.begin(),s.end(),[](char a, char b) {
-                return b == a+1 and (a == 'a' or a == 'c' or a == 'p' or a == 'x');
+                std::string_view as = "acpx";
+                return b == a+1 and as.find(a) != as.npos;
             }) == s.end();
 }
 
