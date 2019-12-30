@@ -6,46 +6,6 @@
 #include <charconv>
 #include <numeric>
 #include <algorithm>
-#include <chrono>
-#include <boost/range/counting_range.hpp>
-
-int part1_bruteforce() {
-
-	const auto total_presents = 33100000;
-	const auto n_presents = 10;
-	const auto total_houses = (total_presents / n_presents);
-
-	// array with 3 mil elements will smash the stack, so vector is used instead
-	// every house has at least 10 presents because the first elf visits them all
-	auto houses = std::vector(total_houses, n_presents);
-
-	// elf_id is one-based, but house_id is zero-based because it's used to access the vector
-	for(const auto elf_id : boost::counting_range(2, (total_houses + 1))) {
-
-		for(auto house_id = (elf_id - 1); house_id < total_houses; house_id += elf_id) {
-
-			houses[house_id] += (elf_id * n_presents);
-		}
-	}
-
-	const auto lowest_house = std::find_if(houses.begin(), houses.end(), [total_presents] (auto house) {
-		return (house >= total_presents);
-	});
-
-	// add 1 to account for zero-based indexing of vector
-	return std::distance(houses.begin(), lowest_house) + 1;
-}
-
-template<typename F>
-double time(F&& f, int num_tries=1) {
-    auto start = std::chrono::high_resolution_clock::now();
-    for(int i = 0; i < num_tries; ++i) {
-        f();
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> diff = end-start;
-    return diff.count()/num_tries;
-}
 
 std::pair<int,int> sum_of_dividing_powers(int current, int p) {
     //1 + p + p^2 +... until p^n doesn't divide current
