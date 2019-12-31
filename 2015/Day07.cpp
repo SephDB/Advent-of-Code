@@ -41,7 +41,7 @@ struct Instruction {
 
 struct ParseResult {
     std::unordered_map<std::string_view,std::uint16_t> names;
-    std::unordered_map<std::uint16_t,Instruction> instructions;
+    std::vector<Instruction> instructions;
 };
 
 ParseResult parse(std::string_view in) {
@@ -81,7 +81,7 @@ ParseResult parse(std::string_view in) {
         return {};
     };
 
-    std::unordered_map<std::uint16_t,Instruction> res;
+    std::vector<Instruction> res(lines.size());
 
     for(auto l : lines) {
         auto parts = split(l,'>');
@@ -96,11 +96,11 @@ ParseResult parse(std::string_view in) {
     return {names,res};
 }
 
-std::vector<std::uint16_t> topo_sort(const std::unordered_map<std::uint16_t,Instruction>& ins, std::uint16_t start) {
-    std::unordered_set<std::uint16_t> visited;
+std::vector<std::uint16_t> topo_sort(const std::vector<Instruction>& ins, std::uint16_t start) {
+    std::vector<bool> visited(ins.size());
     std::vector<std::uint16_t> order;
     auto visit = [&](auto&& rec, auto node) {
-        if(visited.contains(node)) return;
+        if(visited[node]) return;
         auto i = ins.at(node);
         switch(i.t) {
             case Type::AND:
@@ -115,16 +115,16 @@ std::vector<std::uint16_t> topo_sort(const std::unordered_map<std::uint16_t,Inst
                 if(i.a.named) rec(rec,i.a.val);
                 break;
         }
-        visited.insert(node);
+        visited[node] = true;
         order.push_back(node);
     };
     visit(visit,start);
     return order;
 }
 
-auto run(const std::unordered_map<std::uint16_t,Instruction>& instructions, std::uint16_t loc) {
+auto run(const std::vector<Instruction>& instructions, std::uint16_t loc) {
     const auto order = topo_sort(instructions,loc);
-    std::unordered_map<std::uint16_t,std::uint16_t> values;
+    std::vector<std::uint16_t> values(instructions.size());
     auto lookup = [&](Arg a) {
         if(a.named) {
             return values.at(a.val);
