@@ -6,7 +6,7 @@
 #include <array>
 #include <cctype>
 #include <vector>
-#include <unordered_set>
+#include <unordered_map>
 
 std::vector<std::string_view> split(std::string_view in, char delim) {
     std::vector<std::string_view> ret;
@@ -17,6 +17,19 @@ std::vector<std::string_view> split(std::string_view in, char delim) {
     }
     ret.push_back(in);
     return ret;
+}
+
+template<int N>
+auto split_known_max(std::string_view in, char delim) {
+    std::array<std::string_view,N> ret;
+    std::size_t pos = 0;
+    std::size_t current = 0;
+    while((pos = in.find(delim)) != std::string_view::npos) {
+        ret[current++] = in.substr(0,pos);
+        in.remove_prefix(pos+1);
+    }
+    ret[current++] = in;
+    return std::pair(ret,current);
 }
 
 std::uint16_t to_int(std::string_view s) {
@@ -58,11 +71,11 @@ ParseResult parse(std::string_view in) {
         return {true,names[name]};
     };
 
-    auto parseIns = [&](auto input_parts) -> Instruction {
-        if(input_parts.size() == 1) {
+    auto parseIns = [&](auto input_parts, auto size) -> Instruction {
+        if(size == 1) {
             return {Type::SINGLE,lookup(input_parts[0])};
         }
-        if(input_parts.size() == 2) {
+        if(size == 2) {
             return {Type::NOT,lookup(input_parts[1])};
         }
         if(input_parts[1] == "AND") {
@@ -77,81 +90,64 @@ ParseResult parse(std::string_view in) {
         if(input_parts[1] == "LSHIFT") {
             return {Type::LSHIFT,lookup(input_parts[0]),lookup(input_parts[2])};
         }
-        std::cout << "WHAT";
+        std::cout << "Unknown input " << input_parts[0] << ' ' << input_parts[1] << '\n';
         return {};
     };
 
     std::vector<Instruction> res(lines.size());
 
     for(auto l : lines) {
-        auto parts = split(l,'>');
+        auto parts = split_known_max<2>(l,'>').first;
         auto input = parts[0];
         input.remove_suffix(2);
 
         auto name = lookup(parts[1].substr(1)).val;
-
-        res[name] = parseIns(split(input,' '));
+        
+        auto [ins,num] = split_known_max<3>(input,' ');
+        res[name] = parseIns(ins,num);
     }
 
     return {names,res};
 }
 
-std::vector<std::uint16_t> topo_sort(const std::vector<Instruction>& ins, std::uint16_t start) {
-    std::vector<bool> visited(ins.size());
-    std::vector<std::uint16_t> order;
-    auto visit = [&](auto&& rec, auto node) {
-        if(visited[node]) return;
-        auto i = ins.at(node);
-        switch(i.t) {
-            case Type::AND:
-            case Type::OR:
-            case Type::RSHIFT:
-            case Type::LSHIFT:
-                if(i.a.named) rec(rec,i.a.val);
-                if(i.b.named) rec(rec,i.b.val);
-                break;
-            case Type::NOT:
-            case Type::SINGLE:
-                if(i.a.named) rec(rec,i.a.val);
-                break;
-        }
-        visited[node] = true;
-        order.push_back(node);
-    };
-    visit(visit,start);
-    return order;
-}
-
 auto run(const std::vector<Instruction>& instructions, std::uint16_t loc) {
-    const auto order = topo_sort(instructions,loc);
+    std::vector<bool> visited(instructions.size());
     std::vector<std::uint16_t> values(instructions.size());
-    auto lookup = [&](Arg a) {
-        if(a.named) {
-            return values.at(a.val);
-        }
-        return a.val;
+
+    auto getValue = [&](auto&& rec, std::uint16_t l) -> std::uint16_t {
+        auto i = instructions[l];
+        auto lookup = [&](Arg a) {
+            if(a.named) {
+                if(visited[a.val]) return values[a.val];
+                return rec(rec,a.val);
+            } else {
+                return a.val;
+            }
+        };
+        auto val = [&]()->std::uint16_t{
+            switch(i.t) {
+                case Type::AND:
+                    return lookup(i.a) & lookup(i.b);
+                case Type::OR:
+                    return lookup(i.a) | lookup(i.b);
+                case Type::NOT:
+                    return ~lookup(i.a);
+                case Type::RSHIFT:
+                    return lookup(i.a) >> lookup(i.b);
+                case Type::LSHIFT:
+                    return lookup(i.a) << lookup(i.b);
+                case Type::SINGLE:
+                    return lookup(i.a);
+            }
+            std::cout << "WHAT\n";
+            return 0;
+        };
+        auto v = val();
+        visited[l] = true;
+        values[l] = v;
+        return v;
     };
-    auto getValue = [&](Instruction i) -> std::uint16_t {
-        switch(i.t) {
-            case Type::AND:
-                return lookup(i.a) & lookup(i.b);
-            case Type::OR:
-                return lookup(i.a) | lookup(i.b);
-            case Type::NOT:
-                return ~lookup(i.a);
-            case Type::RSHIFT:
-                return lookup(i.a) >> lookup(i.b);
-            case Type::LSHIFT:
-                return lookup(i.a) << lookup(i.b);
-            case Type::SINGLE:
-                return lookup(i.a);
-        }
-        std::cout << "WHAT\n";
-        return 0;
-    };
-    for(auto i : order) {
-        values[i] = getValue(instructions.at(i));
-    }
+    return getValue(getValue,loc);
     return values.at(loc);
 }
 
