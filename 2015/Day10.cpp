@@ -115,8 +115,73 @@ namespace HeapLess {
     }
 }
 
+
+struct State {
+    int count = 0;
+    int has_output = 0;
+    char current;
+    char next;
+    char out() {
+        if(has_output == 2) {
+            has_output--;
+            return count+'0';
+        } else {
+            has_output--;
+            auto ret = current;
+            count = 1;
+            current = next;
+            return ret;
+        }
+    }
+    void in(char c) {
+        if(count == 0) {
+            count = 1;
+            current = c;
+        } else if(c == current) {
+            count++;
+        } else {
+            next = c;
+            has_output = 2;
+        }
+    }
+};
+
+template<int N>
+int apply_no_heap(std::string_view a) {
+    std::array<State,N> states;
+    int total = 0;
+    auto next = [&](char c, int start = 0) {
+        states[start].in(c);
+        if(states[start].has_output) {
+            int receiving_input = start+1;
+            while(receiving_input > start) {
+                if(receiving_input == N) {
+                    while(states[N-1].has_output) {
+                        states[N-1].out();
+                        total++;
+                    }
+                } else {
+                    while(states.at(receiving_input-1).has_output and not states.at(receiving_input).has_output) {
+                        states[receiving_input].in(states.at(receiving_input-1).out());
+                    }
+                    if(states[receiving_input].has_output) receiving_input++;
+                }
+                while(receiving_input > start and not states.at(receiving_input-1).has_output) receiving_input--;
+            }
+        }
+    };
+    for(auto c : a) {
+        next(c);
+    }
+    for(int i = 0; i < N; ++i) {
+        next('\0',i);
+    }
+    return total;
+}
+
 int main() {
     std::cout << "Heapless: " << HeapLess::size<15>("1113122113") << '\n'; //About the biggest that compiles in a reasonable time
+    std::cout << "Part 1 no allocs: " << apply_no_heap<40>("1113122113") << '\n';
     std::cout << "Part 1: " << apply("1113122113",40) << '\n';
     std::cout << "Part 2: " << apply("1113122113",50) << '\n';
 }
