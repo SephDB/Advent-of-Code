@@ -100,7 +100,11 @@ struct Info {
 
 int play(Info game) {
     GameState start{game.player_hp,game.player_mana,game.boss_hp};
-    auto heuristic = [](GameState s) {return 0;};
+    auto heuristic = [](GameState s) {
+        //Most damaging combo is poison + 2*magic missile while poison is doing its thing.
+        //This comes down to 279 mana for a total of 26 damage, which is just over 10 mana per damage
+        return s.boss_hp*10;
+    };
     auto goal = [](GameState s) {return s.boss_hp <= 0;};
     auto apply_effects = [](GameState& s) {
         if(s.recharge_time) {
