@@ -3,6 +3,7 @@
 #include <string_view>
 #include <array>
 #include <map>
+#include <span>
 #include <unordered_map>
 #include <charconv>
 #include <numeric>
@@ -110,7 +111,7 @@ auto parse(std::string_view in) {
 
 int part2 = 0;
 
-std::size_t part1(std::vector<Vec<5>> in, Vec<5> total = {}, int remaining = 100) {
+std::size_t part1(std::span<Vec<5>> in, Vec<5> total = {}, int remaining = 100) {
     if(in.empty() or remaining == 0) {
         total.min_clamp(0);
         auto res = std::accumulate(total.values.begin(),total.values.end()-1,1,std::multiplies{});
@@ -124,7 +125,7 @@ std::size_t part1(std::vector<Vec<5>> in, Vec<5> total = {}, int remaining = 100
     }
     int start = 0, end = remaining;
     auto current = in.back();
-    in.pop_back();
+    in = in.first(in.size()-1);
     auto max_v = std::accumulate(in.begin()+1,in.end(),in.front(),[](Vec<5> a, Vec<5> b) -> Vec<5> {return max(a,b);});
     for(int i = 0; i < 4; ++i) {
         if(max_v[i] == current[i]) continue;
