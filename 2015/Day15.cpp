@@ -112,16 +112,14 @@ auto parse(std::string_view in) {
 int part2 = 0;
 
 std::size_t part1(std::span<Vec<5>> in, Vec<5> total = {}, int remaining = 100) {
-    if(in.empty() or remaining == 0) {
+    if(in.size()==1 or remaining == 0) {
+        total += in.front()*remaining;
         total.min_clamp(0);
         auto res = std::accumulate(total.values.begin(),total.values.end()-1,1,std::multiplies{});
         if(total[4] == 500) {
             part2 = std::max(part2,res);
         }
         return res;
-    }
-    else if(in.size() == 1) {
-        return part1({},total + in.front()*remaining,0);
     }
     int start = 0, end = remaining;
     auto current = in.back();
