@@ -109,6 +109,11 @@ auto parse(std::string_view in) {
     return ret;
 }
 
+bool oppositeSigns(int x, int y) 
+{ 
+    return (x^y) < 0; 
+}
+
 int part2 = 0;
 
 std::size_t part1(std::span<Vec<5>> in, Vec<5> total = {}, int remaining = 100) {
@@ -126,13 +131,13 @@ std::size_t part1(std::span<Vec<5>> in, Vec<5> total = {}, int remaining = 100) 
     in = in.first(in.size()-1);
     auto max_v = std::accumulate(in.begin()+1,in.end(),in.front(),[](Vec<5> a, Vec<5> b) -> Vec<5> {return max(a,b);});
     for(int i = 0; i < 4; ++i) {
-        if(max_v[i] == current[i]) continue;
+        if(not oppositeSigns(max_v[i],current[i])) continue;
         //whether max_v or current is < 0, boundary gives the amount of current that's allowed(or needed, respectively) to make sure total > 0
         auto boundary = (total[i]+remaining*max_v[i])/(max_v[i]-current[i]);
         if(current[i] < 0) {
             //x < (current+remaining*max)/(max-xval)
             end = std::min(end, boundary);
-        } else if(max_v[i] < 0) {
+        } else {
             start = std::max(start,boundary);
         }
     }
@@ -143,7 +148,6 @@ std::size_t part1(std::span<Vec<5>> in, Vec<5> total = {}, int remaining = 100) 
     }
     return max_result;
 }
-
 void solution(std::string_view input) {
     auto ingredients = parse(input);
     std::cout << "Part 1: " << part1(ingredients) << '\n';
