@@ -16,7 +16,7 @@ auto triangle(std::size_t n) {
 template<typename T>
 class Triangular {
 public:
-    Diagonal(std::size_t size) : contents(triangle(size),0) {}
+    Triangular(std::size_t size) : contents(triangle(size),0) {}
 
     std::span<T> operator[](std::size_t index) {
         return {&contents[triangle(index)],index};
