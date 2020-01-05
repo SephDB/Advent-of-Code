@@ -14,7 +14,7 @@ auto triangle(std::size_t n) {
 }
 
 template<typename T>
-class Diagonal {
+class Triangular {
 public:
     Diagonal(std::size_t size) : contents(triangle(size),0) {}
 
@@ -59,7 +59,7 @@ struct Pairs {
     }
 
     std::size_t total;
-    Diagonal<int> content;
+    Triangular<int> content;
 };
 
 Pairs parse(std::string_view input) {
