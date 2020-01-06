@@ -3,8 +3,8 @@
 #include <charconv>
 #include <bitset>
 #include <queue>
+#include <cmath>
 #include <vector>
-#include <unordered_map>
 #include <map>
 
 std::vector<std::string_view> split(std::string_view in, char delim) {
@@ -24,35 +24,40 @@ int to_int(std::string_view s) {
     return ret;
 }
 
-struct Path {
-    int target;
-    int length;
+auto triangle(std::size_t n) {
+    return n*(n-1)/2;
+}
+
+int triangle_root(int x) {
+    return (static_cast<int>(std::sqrt(8*x+1))-1)/2;
+}
+
+auto adjacency_lookup(const std::vector<int>& matrix, int x, int y) {
+    return matrix[triangle(std::max(x,y))+std::min(x,y)];
+}
+
+struct ParseResult {
+    std::vector<int> adjacency;
+    int num_places;
+    auto lookup(int x, int y) const {
+        return adjacency_lookup(adjacency,x,y);
+    }
 };
 
-std::vector<std::vector<Path>> parse(std::string_view input) {
-    std::vector<std::vector<Path>> paths;
-    auto lookup = [&,current=0,m=std::unordered_map<std::string_view,int>{}](std::string_view n) mutable {
-        if(not m.contains(n)) {
-            m[n] = current++;
-            paths.push_back({});
-        }
-        return m.at(n);
-    };
+auto parse(std::string_view input) {
+    ParseResult ret;
 
     for(auto line : split(input,'\n')) {
-        auto comps = split(line,' ');
-        auto start = lookup(comps[0]);
-        auto end = lookup(comps[2]);
-        auto length = to_int(comps[4]);
-        paths[start].push_back({end,length});
-        paths[end].push_back({start,length});
+        auto last = line.find_last_of(' ');
+        ret.adjacency.push_back(to_int(line.substr(last+1)));
     }
-
-    return paths;
+    std::reverse(ret.adjacency.begin(),ret.adjacency.end());
+    ret.num_places = triangle_root(ret.adjacency.size())+1;
+    return ret;
 }
 
 struct AsState {
-    AsState(int head, int tail, std::bitset<8> checked) : h(std::min(head,tail)), t(std::max(head,tail)), so_far(checked) {};
+    AsState(int head, int tail, std::bitset<8> checked, int l=0) : h(std::min(head,tail)), t(std::max(head,tail)), so_far(checked), len(l) {};
     bool operator<(AsState o) const {
         auto s = so_far.to_ulong();
         auto os = o.so_far.to_ulong();
@@ -61,7 +66,7 @@ struct AsState {
 
     int h,t;
     std::bitset<8> so_far;
-    int len = 0;
+    int len;
 };
 
 template<typename ScoreType, typename State, typename HFunc, typename GoalFunc, typename NextFunc>
@@ -99,21 +104,16 @@ std::pair<State,ScoreType> As(State start, HFunc&& heuristic, GoalFunc&& isgoal,
     return {start,0};
 }
 
-int part1(const std::vector<std::vector<Path>>& paths) {
+int part1(const ParseResult& paths) {
     auto heuristic = [](AsState s) {return 0;};
-    auto isgoal = [&](AsState s) {return s.so_far.count() == paths.size();};
+    auto isgoal = [&](AsState s) {return s.so_far.count() == paths.num_places;};
     auto for_each_neighbor = [&paths](AsState s, auto&& callback) {
-        for(Path p : paths[s.h]) {
-            if(s.so_far.test(p.target)) continue;
-            AsState next(p.target,s.t,s.so_far);
-            next.so_far.set(p.target);
-            callback(next,p.length);
-        }
-        for(Path p : paths[s.t]) {
-            if(s.so_far.test(p.target)) continue;
-            AsState next(s.h,p.target,s.so_far);
-            next.so_far.set(p.target);
-            callback(next,p.length);
+        for(int i = 0; i < paths.num_places; ++i) {
+            if(s.so_far.test(i)) continue;
+            auto so_far = s.so_far;
+            so_far.set(i);
+            callback({s.h,i,so_far},paths.lookup(s.t,i));
+            callback({i,s.t,so_far},paths.lookup(s.h,i));
         }
     };
 
@@ -123,23 +123,18 @@ int part1(const std::vector<std::vector<Path>>& paths) {
     return As<int>(startState, heuristic, isgoal, for_each_neighbor).second;
 }
 
-int part2(std::vector<std::vector<Path>> paths) {
+int part2(const ParseResult& paths) {
     auto heuristic = [](AsState s) {return 0;};
-    auto isgoal = [&](AsState s) {return s.so_far.count() == paths.size();};
+    auto isgoal = [&](AsState s) {return s.so_far.count() == paths.num_places;};
     auto for_each_neighbor = [&paths](AsState s, auto&& callback) {
-        for(Path p : paths[s.h]) {
-            if(s.so_far.test(p.target)) continue;
-            AsState next(p.target,s.t,s.so_far);
-            next.so_far.set(p.target);
-            next.len = s.len + p.length;
-            callback(next,1.0/p.length);
-        }
-        for(Path p : paths[s.t]) {
-            if(s.so_far.test(p.target)) continue;
-            AsState next(s.h,p.target,s.so_far);
-            next.so_far.set(p.target);
-            next.len = s.len + p.length;
-            callback(next,1.0/p.length);
+        for(int i = 0; i < paths.num_places; ++i) {
+            if(s.so_far.test(i)) continue;
+            auto so_far = s.so_far;
+            so_far.set(i);
+            auto tail_distance = paths.lookup(s.t,i);
+            auto head_distance = paths.lookup(s.h,i);
+            callback({s.h,i,so_far,s.len+tail_distance},1.0/paths.lookup(s.t,i));
+            callback({i,s.t,so_far,s.len+head_distance},1.0/paths.lookup(s.h,i));
         }
     };
 
