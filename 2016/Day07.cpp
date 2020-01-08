@@ -22,7 +22,7 @@ bool any_ABnA(std::string_view in, int n, BinaryPredicate&& p) {
     auto start = in.begin();
     auto next = in.begin()+n+1;
     while(true) {
-        //Finds first matching AxxA(with x's being unknown) bc of inverted condition
+        //Finds first matching AxxxA(with x's being unknown, number == n) bc of inverted condition
         auto [newnext,newstart] = std::mismatch(next,in.end(),start,[](auto a, auto b) {return a != b;});
         start = newstart;
         next = newnext;
