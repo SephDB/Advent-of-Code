@@ -59,13 +59,6 @@ void solution(std::string_view in) {
     std::stack<int> ready_bots;
     std::map<int,int> outputs;
 
-    auto get_bot = [&bots](int b) -> Bot& {
-        if(b >= bots.size()) {
-            bots.resize(b);
-        }
-        return bots[b];
-    };
-
     auto parse_out = [](std::string_view type, std::string_view num) {
         Bot::OutType t = (type == "output" ? Bot::OUT : Bot::BOT);
         return std::make_pair(t,to_int(num));
@@ -75,12 +68,12 @@ void solution(std::string_view in) {
         if(l.starts_with("value")) {
             auto s = split_known<6>(l,' ');
             auto bot_num = to_int(s[5]);
-            if(get_bot(bot_num).give_input(to_int(s[1]))) {
+            if(bots[bot_num].give_input(to_int(s[1]))) {
                 ready_bots.push(bot_num);
             }
         } else {
             auto s = split_known<12>(l,' ');
-            auto& bot = get_bot(to_int(s[1]));
+            auto& bot = bots[to_int(s[1])];
             bot.low = parse_out(s[5],s[6]);
             bot.high = parse_out(s[10],s[11]);
         }
