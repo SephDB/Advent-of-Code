@@ -16,7 +16,7 @@ bool incrementing_triple(std::string_view p) {
 }
 
 bool valid(std::string_view p) {
-    return p.find_first_of("iol") == p.npos and two_pairs(p) and incrementing_triple(p);
+    return two_pairs(p) and incrementing_triple(p) and p.find_first_of("iol") == p.npos;
 }
 
 void inc(std::string& s) {
