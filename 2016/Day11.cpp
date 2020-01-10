@@ -1,5 +1,4 @@
 #include <iostream>
-#include <string>
 #include <string_view>
 #include <array>
 #include <queue>
@@ -10,7 +9,6 @@
 #include <bitset>
 
 constexpr int num_floors = 4;
-constexpr int num_pairs = 5;
 
 struct Pair {
     int micro_floor;
@@ -23,8 +21,9 @@ struct Pair {
     }
 };
 
+template<int NPairs>
 struct State {
-    std::array<Pair,num_pairs> pairs;
+    std::array<Pair,NPairs> pairs;
     int elevator;
     bool valid() const {
         std::bitset<num_floors> has_generator;
@@ -54,14 +53,14 @@ struct State {
             return ps;
         };
 
-        for(int i = 0; i < num_pairs*2; ++i) {
+        for(int i = 0; i < NPairs*2; ++i) {
             if(get(pairs,i) != elevator) continue;
 
             auto inner = [this,&i,&next,&get,&callback](int level) {
                 auto imoved = next(pairs,i,level);
                 if(State{imoved,level}.valid())
                     callback(State{imoved,level});
-                for(int j = i+1; j < num_pairs*2; ++j) {
+                for(int j = i+1; j < NPairs*2; ++j) {
                     if(get(pairs,j) != elevator) continue;
                     auto n = next(imoved,j,level);
                     if(State{n,level}.valid())
@@ -78,7 +77,8 @@ struct State {
     }
 };
 
-std::ostream& operator<<(std::ostream& o, State s) {
+template<int N>
+std::ostream& operator<<(std::ostream& o, State<N> s) {
     std::cout << s.elevator << ' ';
     for(auto p : s.pairs) {
         std::cout << "(m" << p.micro_floor << " g" << p.gen_floor << ") ";
@@ -86,21 +86,38 @@ std::ostream& operator<<(std::ostream& o, State s) {
     return o;
 }
 
-State parse(std::string_view input) {
+constexpr int num_pairs = 5;
+
+State<num_pairs> parse(std::string_view input) {
     //Thulium and cobalt have both on the first floor, and polonium and promethium are split between floor 1 and 2(microchip being on floor 2)
     return {{{{0,0},{0,0},{0,0},{1,0},{1,0}}},0};
     //return {{{{0,1},{0,2}}},0};
 }
 
-auto part1(State start) {
-    auto is_goal = [](const State& s) {
+auto part2_input(State<num_pairs> s) {
+    State<num_pairs+2> ret;
+
+    ret.pairs[0] = ret.pairs[1] = {0,0};
+
+    for(int i = 0; i < num_pairs; ++i) {
+        ret.pairs[i+2] = s.pairs[i];
+    }
+
+    ret.elevator = 0;
+
+    return ret;
+}
+
+template<int N>
+auto search(State<N> start) {
+    auto is_goal = [](const State<N>& s) {
         return std::all_of(s.pairs.begin(),s.pairs.end(),[](auto p) {
             return p.gen_floor == p.micro_floor and p.micro_floor == num_floors-1;
         });
     };
     
     std::unordered_set<int> seen;
-    std::queue<std::pair<int,State>> states;
+    std::queue<std::pair<int,State<N>>> states;
     states.push({0,start});
     seen.insert(start.state_rep());
 
@@ -110,7 +127,7 @@ auto part1(State start) {
         if(is_goal(current)) {
             return len;
         }
-        current.neighbours([&](State next) {
+        current.neighbours([&,len=len](State<N> next) {
             if(seen.insert(next.state_rep()).second) {
                 states.push({len+1,next});
             }
@@ -122,7 +139,8 @@ auto part1(State start) {
 
 void solution(std::string_view input) {
     auto start = parse(input);
-    std::cout << "Part 1: " << part1(start) << '\n';
+    std::cout << "Part 1: " << search(start) << '\n';
+    std::cout << "Part 2: " << search(part2_input(start)) << '\n';
 }
 
 std::string_view input = R"(The first floor contains a polonium generator, a thulium generator, a thulium-compatible microchip, a promethium generator, a ruthenium generator, a ruthenium-compatible microchip, a cobalt generator, and a cobalt-compatible microchip.
