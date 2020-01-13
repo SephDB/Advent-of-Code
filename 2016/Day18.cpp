@@ -10,12 +10,12 @@ int main() {
 
     auto count = [start](int num) {
         auto c = start;
-        std::uint64_t total = c.size() - c.count();
+        std::uint64_t total = c.count();
         for(int i = 1; i < num; ++i) {
             c = (c << 1) ^ (c >> 1);
-            total += c.size() - c.count();
+            total += c.count();
         }
-        return total;
+        return c.size()*num - total;
     };
 
     std::cout << "Part 1: " << count(40) << '\n';
