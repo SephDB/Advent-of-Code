@@ -1,0 +1,23 @@
+#include <iostream>
+#include <string_view>
+#include <bitset>
+
+constexpr std::string_view input = "^^^^......^...^..^....^^^.^^^.^.^^^^^^..^...^^...^^^.^^....^..^^^.^.^^...^.^...^^.^^^.^^^^.^^.^..^.^";
+
+int main() {
+    using Row = std::bitset<input.size()>;
+    Row start(input.data(),input.npos,'.','^');
+
+    auto count = [start](int num) {
+        auto c = start;
+        std::uint64_t total = c.size() - c.count();
+        for(int i = 1; i < num; ++i) {
+            c = (c << 1) ^ (c >> 1);
+            total += c.size() - c.count();
+        }
+        return total;
+    };
+
+    std::cout << "Part 1: " << count(40) << '\n';
+    std::cout << "Part 2: " << count(400'000) << '\n';
+}
