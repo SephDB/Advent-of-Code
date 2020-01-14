@@ -119,7 +119,6 @@ int part2 = 0;
 std::size_t part1(std::span<Vec<5>> in, Vec<5> total = {}, int remaining = 100) {
     if(in.size()==1 or remaining == 0) {
         total += in.front()*remaining;
-        total.min_clamp(0);
         auto res = std::accumulate(total.values.begin(),total.values.end()-1,1,std::multiplies{});
         if(total[4] == 500) {
             part2 = std::max(part2,res);
@@ -127,18 +126,31 @@ std::size_t part1(std::span<Vec<5>> in, Vec<5> total = {}, int remaining = 100) 
         return res;
     }
     int start = 0, end = remaining;
-    auto current = in.back();
-    in = in.first(in.size()-1);
+    auto current = in.front();
+    in = in.subspan(1);
     auto max_v = std::accumulate(in.begin()+1,in.end(),in.front(),[](Vec<5> a, Vec<5> b) -> Vec<5> {return max(a,b);});
     for(int i = 0; i < 4; ++i) {
+        if(max_v[i] == 0) {
+            if(current[i] > 0 and total[i] <= 0) {
+                start = std::max(start,-total[i]/current[i]+1);
+                continue;
+            }
+            if(current[i] == 0 and total[i] <= 0) {
+                return 0;
+            }
+        }
+        if(current[i] == 0 and max_v[i] > 0 and total[i] <= 0) {
+                end = std::min(end,remaining+total[i]/max_v[i]-1);
+                continue;
+        }
         if(not oppositeSigns(max_v[i],current[i])) continue;
         //whether max_v or current is < 0, boundary gives the amount of current that's allowed(or needed, respectively) to make sure total > 0
         auto boundary = (total[i]+remaining*max_v[i])/(max_v[i]-current[i]);
         if(current[i] < 0) {
             //x < (current+remaining*max)/(max-xval)
-            end = std::min(end, boundary);
+            end = std::min(end, boundary-1);
         } else {
-            start = std::max(start,boundary);
+            start = std::max(start,boundary+1);
         }
     }
     std::size_t max_result = 0;
@@ -148,6 +160,7 @@ std::size_t part1(std::span<Vec<5>> in, Vec<5> total = {}, int remaining = 100) 
     }
     return max_result;
 }
+
 void solution(std::string_view input) {
     auto ingredients = parse(input);
     std::cout << "Part 1: " << part1(ingredients) << '\n';
