@@ -129,7 +129,7 @@ auto run(Program p, std::array<int,4> regs = {0,0,0,0}) {
 void solution(std::string_view input) {
     auto in = parse(input);
     std::cout << "Part 1: " << run(in,{7,0,0,0}) << '\n';
-    //Reverse engineered
+    //Reverse engineered. Input program calculates factorial of input number and sums it with the product of two hardcoded numbers
     auto fact = 1;
     for(int i = 2; i < 12; ++i) {
         fact *= i;
