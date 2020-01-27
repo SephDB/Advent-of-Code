@@ -42,9 +42,9 @@ auto parse(std::string_view input) {
 }
 
 auto part2(std::vector<Scanner> input) {
-    std::sort(input.begin(),input.end(),[](auto a, auto b){return a.period < b.period;});
+    std::sort(input.begin(),input.end(),[](auto&& a, auto&& b){return a.period < b.period;});
     auto caught = [&](int wait) {
-        return std::any_of(input.begin(),input.end(),[wait](Scanner s) {return (s.depth+wait) % s.period == 0;});
+        return std::any_of(input.begin(),input.end(),[wait](const Scanner& s) {return (s.depth+wait) % s.period == 0;});
     };
     int current = 0;
     while(caught(++current));
