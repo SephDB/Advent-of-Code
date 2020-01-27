@@ -24,28 +24,25 @@ int to_int(std::string_view s) {
 
 struct Scanner {
     int depth;
-    int range;
     int period;
 };
 
 auto parse(std::string_view input) {
     std::vector<Scanner> s;
+    int total = 0;
     split(input,'\n',[&](std::string_view line) {
         auto pos = line.find(':');
         auto depth = to_int(line.substr(0,pos));
         auto range = to_int(line.substr(pos+2));
-        s.push_back({depth,range,range*2-2});
+        auto period = range*2-2;
+        if(depth % period == 0) total += depth*range;
+        s.push_back({depth,range*2-2});
     });
-    return s;
-}
-
-auto part1(std::vector<Scanner> input) {
-    return std::accumulate(input.begin(),input.end(),0,[](auto acc, auto s) {
-        return (s.depth % s.period == 0) ? acc+s.depth*s.range : acc;
-        });
+    return std::pair{std::move(s),total};
 }
 
 auto part2(std::vector<Scanner> input) {
+    std::sort(input.begin(),input.end(),[](auto a, auto b){return a.period < b.period;});
     auto caught = [&](int wait) {
         return std::any_of(input.begin(),input.end(),[wait](Scanner s) {return (s.depth+wait) % s.period == 0;});
     };
@@ -57,8 +54,8 @@ auto part2(std::vector<Scanner> input) {
 
 void solution(std::string_view input) {
     auto in = parse(input);
-    std::cout << "Part 1: " << part1(in) << '\n';
-    std::cout << "Part 2: " << part2(in) << '\n';
+    std::cout << "Part 1: " << in.second << '\n';
+    std::cout << "Part 2: " << part2(std::move(in.first)) << '\n';
 }
 
 std::string_view input = R"(0: 4
