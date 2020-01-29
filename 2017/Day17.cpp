@@ -10,20 +10,19 @@ int main() {
     int loc = 0;
     for(int i = 1; i <= 2017; ++i) {
         loc += input;
-        loc %= buffer.size();
+        loc %= i;
         buffer.insert(buffer.begin()+loc+1,i);
         loc++;
     }
-    std::cout << "Part 1: " << buffer[(loc+1) % buffer.size()] << '\n';
+    std::cout << "Part 1: " << buffer[(loc+1) % 2018] << '\n';
     
     loc = 0;
-    int size = 1;
-    int ret = 1;
+    int part2 = 0;
     for(int i = 1; i <= 50'000'000; ++i) {
         loc += input;
-        loc %= size++;
-        if(loc == 0) ret = i;
+        loc %= i;
+        if(loc == 0) part2 = i;
         loc++;
     }
-    std::cout << "Part 2: " << ret << '\n';
+    std::cout << "Part 2: " << part2 << '\n';
 }
