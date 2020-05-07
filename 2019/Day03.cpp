@@ -73,7 +73,7 @@ template<typename F>
 int closest_diff(const std::vector<Segment>& a, const std::vector<Segment>& b, F&& length) {
     int min = 500000;
     for(auto s : a) {
-        auto start = std::find_if(b.begin(),b.end(),[&s](auto bs) {return s.start <= bs.loc and bs.loc <= s.end;});
+        auto start = std::lower_bound(b.begin(),b.end(),s,[](auto bs, auto s) {return bs.loc < s.start;});
         while(start != b.end() and start->loc <= s.end) {
             if(start->start <= s.loc and s.loc <= start->end) {
                 auto distance = length(s,*start);
