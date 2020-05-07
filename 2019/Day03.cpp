@@ -64,8 +64,8 @@ Line parse(std::string_view in) {
         total += std::abs(length);
     });
     auto seg_cmp = [](auto s1, auto s2) {return s1.loc < s2.loc;};
-    std::sort(ret.hsegments.begin(),ret.hsegments.end(),seg_cmp);
-    std::sort(ret.vsegments.begin(),ret.vsegments.end(),seg_cmp);
+    std::sort(ret.hsegments.begin(),ret.hsegments.end(),[](auto s1, auto s2) {return s1.start < s2.start;});
+    std::sort(ret.vsegments.begin(),ret.vsegments.end(),[](auto s1, auto s2) {return s1.loc < s2.loc;});
     return ret;
 }
 
@@ -89,7 +89,7 @@ int closest_diff(const std::vector<Segment>& a, const std::vector<Segment>& b, F
 template<typename F>
 int solve(const Line& a, const Line& b, F&& f) {
     auto diff = closest_diff(a.hsegments,b.vsegments,f);
-    return std::min(diff,closest_diff(a.vsegments,b.hsegments,f));
+    return std::min(diff,closest_diff(b.hsegments,a.vsegments,f));
 }
 
 int part1(const Line& a, const Line& b) {
