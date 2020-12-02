@@ -1,22 +1,8 @@
 #include <iostream>
 #include <string_view>
-#include <array>
 #include <complex>
-#include <charconv>
-#include <numeric>
-#include <algorithm>
 
 using namespace std::string_view_literals;
-
-template<typename F>
-void split(std::string_view in, char delim, F&& f) {
-    std::size_t pos = 0;
-    while((pos = in.find(delim)) != std::string_view::npos) {
-        f(in.substr(0,pos));
-        in.remove_prefix(pos+1);
-    }
-    f(in);
-}
 
 struct Grid {
     std::string_view grid;
