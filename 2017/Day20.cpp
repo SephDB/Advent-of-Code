@@ -1,7 +1,9 @@
 #include <iostream>
 #include <string_view>
 #include <array>
-#include <map>
+#include <optional>
+#include <cmath>
+#include <tuple>
 #include <charconv>
 #include <numeric>
 #include <algorithm>
@@ -39,6 +41,7 @@ struct Particle {
     std::array<int,3> pos;
     std::array<int,3> vel;
     std::array<int,3> acc;
+    int time_of_death = std::numeric_limits<int>::max();
 };
 
 auto parse(std::string_view input) {
@@ -54,13 +57,104 @@ auto parse(std::string_view input) {
     return particles;
 }
 
-auto part1(decltype(parse("")) input) {
+auto part1(const decltype(parse(""))& input) {
     return std::ranges::min_element(input.begin(),input.end(),{},[](auto p) {return std::abs(p.acc[0]) + std::abs(p.acc[1]) + std::abs(p.acc[2]);}) - input.begin();
+}
+
+struct Collision {
+    std::array<int,2> collisions = {0,0};
+    int num_collisions = 0; //-1 = infinite
+
+    Collision merge(Collision o) {
+        if(o.num_collisions == -1) return *this;
+        if(num_collisions == -1) return o;
+        Collision ret;
+        ret.num_collisions = std::distance(ret.collisions.begin(),
+                                std::set_intersection(collisions.begin(),collisions.begin()+num_collisions,
+                                    o.collisions.begin(),o.collisions.begin()+o.num_collisions,
+                                    ret.collisions.begin()));
+        return ret;
+    }
+};
+
+int collide(Particle a, Particle b) {
+    auto coord = [&](int num) -> Collision {
+        int A = a.acc[num] - b.acc[num];
+        int B = 2*(a.vel[num] - b.vel[num]) + A;
+        int C = 2*(a.pos[num] - b.pos[num]);
+
+        if(A == 0) {
+            if(B == 0 and C == 0)
+                return {{0,0},-1}; //same particle wrt this coordinate
+            else if(B == 0)
+                return {}; //colinear but parallel
+            else if(C % B == 0)
+                return {{C/B,0},1};
+            return {}; //no integer solution
+        }
+
+        int D = B*B - 4*A*C;
+        if(D < 0) return {};
+        int Dsqrt = std::sqrt(D);
+        if(Dsqrt*Dsqrt == D) {
+            Collision ret;
+            if((-B - Dsqrt)*A >= 0 and (-B - Dsqrt) % (2*A) == 0) {
+                ret.collisions[ret.num_collisions++] = (-B - Dsqrt) / (2*A);
+            }
+            if((-B + Dsqrt)*A >= 0 and (-B + Dsqrt) % (2*A) == 0) {
+                ret.collisions[ret.num_collisions++] = (-B + Dsqrt) / (2*A);
+            }
+            return ret;
+        }
+        return {};
+    };
+
+    if(auto x = coord(0); x.num_collisions != 0) {
+        if(auto y = coord(1); y.num_collisions != 0) {
+            auto xy = x.merge(y);
+            if(xy.num_collisions != 0) {
+                if(auto z = coord(2); z.num_collisions != 0) {
+                    auto xyz = xy.merge(z);
+                    if(xyz.num_collisions == 1) {
+                        return xyz.collisions[0];
+                    }
+                    //other options don't appear to happen
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+
+struct CollisionEvent {
+    int time;
+    size_t p1, p2;
+};
+
+auto part2(decltype(parse("")) input) {
+    std::vector<CollisionEvent> collisions;
+    for(std::size_t i = 0; i < input.size()-1;++i) {
+        for(std::size_t j = i+1; j < input.size(); ++j) {
+            if(int time = collide(input[i],input[j]); time != -1) {
+                collisions.push_back({time,i,j});
+            }
+        }
+    }
+    std::ranges::sort(collisions,{},&CollisionEvent::time);
+    for(auto event : collisions) {
+        if(event.time <= input[event.p1].time_of_death && event.time <= input[event.p2].time_of_death) {
+            input[event.p1].time_of_death = event.time;
+            input[event.p2].time_of_death = event.time;
+        }
+    }
+    return std::count_if(input.begin(),input.end(),[](auto p) {return p.time_of_death == std::numeric_limits<int>::max();});
 }
 
 void solution(std::string_view input) {
     auto in = parse(input);
     std::cout << "Part 1: " << part1(in) << '\n';
+    std::cout << "Part 2: " << part2(std::move(in));
 }
 
 std::string_view input = R"(p=<-1724,-1700,5620>, v=<44,-10,-107>, a=<2,6,-9>
