@@ -115,10 +115,11 @@ int collide(Particle a, Particle b) {
             if(xy.num_collisions != 0) {
                 if(auto z = coord(2); z.num_collisions != 0) {
                     auto xyz = xy.merge(z);
-                    if(xyz.num_collisions == 1) {
+                    if(xyz.num_collisions > 0) {
                         return xyz.collisions[0];
+                    } else if(xyz.num_collisions == -1) {
+                        return 0;
                     }
-                    //other options don't appear to happen
                 }
             }
         }
