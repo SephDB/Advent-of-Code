@@ -8,31 +8,42 @@
 #include <algorithm>
 
 template<typename F>
-void split(std::string_view in, char delim, F&& f) {
-    std::size_t pos = 0;
-    while((pos = in.find(delim)) != std::string_view::npos) {
-        f(in.substr(0,pos));
-        in.remove_prefix(pos+1);
+void split_fixed(std::string_view in, char delim, F&& f) {
+    std::size_t width = in.find(delim)+1;
+    while(in.size() > width) {
+        f(in.substr(0,width-1));
+        in.remove_prefix(width);
     }
-    f(in);
+    f(in.substr(0,width-1));
 }
 
 unsigned long sum(unsigned long m, unsigned long n) {
     return (n-m+1)*(m+n)/2;
 }
 
+//Faster than bitset parsing, even on libstdc++, bc of not checking the 0 bit character
+unsigned long fast_parse(std::string_view s) {
+    unsigned long out = 0;
+    for(int i = 0; i < 7; ++i) {
+        out <<= 1;
+        if(s[i] == 'B') out |= 1;
+    }
+    for(int i = 0; i < 3; ++i) {
+        out <<= 1;
+        if(s[7+i] == 'R') out |= 1;
+    }
+    return out;
+}
+
 auto solution(std::string_view input) {
     unsigned long min = 512, max = 512, total = 0;
-    split(input,'\n',[&](std::string_view line) {
-        std::bitset<10> a(line.data(),7,'F','B');
-        line.remove_prefix(7);
-        a = (a << 3) | std::bitset<10>{line.data(),3,'L','R'};
-        std::tie(min,max) = std::minmax({min,max,a.to_ulong()});
-        total += a.to_ulong();
+    split_fixed(input,'\n',[&](auto line) {
+        auto a = fast_parse(line);
+        std::tie(min,max) = std::minmax({min,max,a});
+        total += a;
     });
     std::cout << "Part 1: " << max << '\n';
     std::cout << "Part 2: " << sum(min,max) - total << '\n';
-    return 0;
 }
 
 std::string_view input = R"(BBBFBFFRLL
