@@ -55,8 +55,9 @@ constexpr int to_id(std::string_view input) {
 
 struct Instruction {
     enum class Type {acc,jmp,nop};
-    Type t;
     int num;
+    Type t;
+    bool seen = false;
     Instruction(std::string_view line, int pos) {
         auto [ins,n] = split_known<2>(line,' ',[](auto a){return a;});
         t = static_cast<Type>(to_id<"acc","jmp","nop">(ins));
@@ -73,12 +74,11 @@ auto parse(std::string_view input) {
     return instructions;
 }
 
-auto part1(decltype(parse("")) input) {
+auto part1(decltype(parse(""))& input) {
     int pc = 0;
     int acc = 0;
-    std::vector<bool> seen(input.size(),false);
-    while(!seen[pc]) {
-        seen[pc] = true;
+    while(!input[pc].seen) {
+        input[pc].seen = true;
         switch(input[pc].t) {
             case Instruction::Type::acc:
                 acc += input[pc].num;
@@ -91,8 +91,7 @@ auto part1(decltype(parse("")) input) {
         }
         ++pc;
     }
-    std::cout << acc << '\n';
-    return seen;
+    return acc;
 }
 
 auto run(decltype(parse("")) input) {
@@ -114,7 +113,7 @@ auto run(decltype(parse("")) input) {
     return acc;
 }
 
-auto part2(decltype(parse("")) input, std::vector<bool> seen) {
+auto part2(decltype(parse("")) input) {
     std::vector<std::pair<int,int>> target(input.size()+1,{-1,-1}); //first entry for regular, second for next jump/nop changed
     target[input.size()] = {input.size(),input.size()};
     while(true) {
@@ -126,7 +125,7 @@ auto part2(decltype(parse("")) input, std::vector<bool> seen) {
                     break;
                 case Instruction::Type::jmp:
                     target[i] = target[t.num];
-                    if(seen[i]) {
+                    if(t.seen) {
                         target[i].second = target[i+1].first;
                         if(target[i].second == input.size()) {
                             input[i].t = Instruction::Type::nop;
@@ -136,7 +135,7 @@ auto part2(decltype(parse("")) input, std::vector<bool> seen) {
                     break;
                 case Instruction::Type::nop:
                     target[i] = target[i+1];
-                    if(seen[i]) {
+                    if(t.seen) {
                         target[i].second = target[t.num].first;
                         if(target[i].second == input.size()) {
                             input[i].t = Instruction::Type::jmp;
@@ -152,9 +151,8 @@ auto part2(decltype(parse("")) input, std::vector<bool> seen) {
 
 void solution(std::string_view input) {
     auto in = parse(input);
-    std::cout << "Part 1: ";
-    auto seen = part1(in);
-    std::cout << "Part 2: " << part2(std::move(in),std::move(seen)) << '\n';
+    std::cout << "Part 1: " << part1(in) << '\n';
+    std::cout << "Part 2: " << part2(in) << '\n';
 }
 
 std::string_view input = R"(acc +13
