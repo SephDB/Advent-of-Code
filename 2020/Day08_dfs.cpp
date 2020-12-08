@@ -81,6 +81,8 @@ auto traverse(decltype(parse("")) input) {
         int acc;
         bool switched;
     };
+    
+    //acc instructions are not interesting in the graph, skip over them automatically
     auto run = [&](entry e) {
         while(input[e.pc].t == Instruction::Type::acc and not input[e.pc].seen) {
             e.acc += input[e.pc].num;
