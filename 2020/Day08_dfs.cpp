@@ -120,9 +120,11 @@ auto traverse(decltype(parse("")) input) {
         if(i.t == Instruction::Type::jmp) {
             if(!e.switched) push({e.pc+1,e.acc,true});
             push(run({i.num,e.acc,e.switched}));
-        } else {
+        } else if(i.t == Instruction::Type::nop) {
             if(!e.switched) push({i.num,e.acc,true});
             push({e.pc+1,e.acc,e.switched});
+        } else {
+            push(e); //acc instruction, already seen. Let push set part1_answer if it's not switched
         }
     }
     std::cout << "Unreachable!\n";
