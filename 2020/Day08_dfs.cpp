@@ -90,22 +90,24 @@ auto traverse(decltype(parse("")) input) {
         return e;
     };
     
-    std::stack<entry,std::vector<entry>> dfs;
-    dfs.push(run({0,0,false}));
+    std::vector<entry> dfs;
+    dfs.reserve(input.size()/2);
 
     auto push = [&](entry e) {
         if(not input[e.pc].seen) {
-            dfs.push(e);
+            dfs.push_back(e);
         } else if(not e.switched) {
             part1_answer = e.acc; //Found the loop without switching an instruction around
         }
     };
     auto pop = [&]{
-        auto e = dfs.top();
-        dfs.pop();
+        auto e = dfs.back();
+        dfs.pop_back();
         return e;
     };
-    
+
+    push(run({0,0,false}));
+
     while(not dfs.empty()) {
         entry e = pop();
 
