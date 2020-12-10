@@ -17,14 +17,14 @@ void split(std::string_view in, char delim, F&& f) {
     f(in);
 }
 
-int to_int(std::string_view s) {
-    int ret;
+unsigned int to_int(std::string_view s) {
+    unsigned int ret;
     std::from_chars(s.begin(),s.end(),ret);
     return ret;
 }
 
 auto parse(std::string_view input) {
-    std::vector<int> jolts;
+    std::vector<unsigned int> jolts;
     split(input,'\n',[&](std::string_view line) {
         jolts.push_back(to_int(line));
     });
@@ -50,16 +50,17 @@ auto part1(const decltype(parse(""))& input) {
     return d.diff[0] * d.diff[2];
 }
 
-auto part2(decltype(parse(""))& input) {
-    std::vector<uint64_t> paths(input.back()+1,0);
-    paths.back() = 1;
-
-    input.pop_back(); //don't need the final element in our loop
-
+auto part2(const decltype(parse(""))& input) {
+    std::array<uint64_t,4> diff = {0,0,0,0};
+    auto get = [&diff](unsigned int a) -> uint64_t& {return diff[a%4];};
+    get(input.back()+1) = 1;
+    int prev = input.back()+1;
     for(auto jolt : std::ranges::reverse_view(input)) {
-        paths[jolt] = paths[jolt+1] + paths[jolt+2] + paths[jolt+3];
+        for(int i = jolt+1; i < prev; ++i) get(i) = 0;
+        get(jolt) = get(jolt+1) + get(jolt+2) + get(jolt+3);
+        prev = jolt;
     }
-    return paths.front();
+    return diff[0];
 }
 
 void solution(std::string_view input) {
