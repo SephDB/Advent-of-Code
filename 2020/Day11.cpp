@@ -9,6 +9,8 @@
 struct Grid {
     std::string current;
     std::string next;
+    std::array<int,8> dirs;
+    std::vector<std::array<int,8>> directions;
     int width;
     int height;
     Grid(std::string_view input) : width(input.find('\n')) {
@@ -16,50 +18,54 @@ struct Grid {
         std::erase(current,'\n');
         next = current;
         height = current.size()/width;
+        dirs = {-width-1, -width, -width+1, -1, 1, width-1, width, width+1};
+        directions.resize(current.size(),std::array{0,0,0,0,0,0,0,0});
+        for(int y = 0; y < height; ++y) {
+            for(int x = 0; x < width; ++x) {
+                if(current[x+y*width] != '.') {
+                    for(int d = 4; d < 8; ++d) {
+                        int yd = dirs[d] != 1;
+                        int xd = dirs[d] - yd*width;
+                        for(int n = 1; y+yd*n < height && x+n*xd >= 0 && x+n*xd < width; ++n) {
+                            int loc = (y+yd*n)*width + x+n*xd;
+                            if(current.at(loc) != '.') {
+                                directions[x+y*width][d] = n;
+                                directions[loc][7-d] = n;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    template<size_t N, size_t... Is>
+    template<bool Part2, size_t N, size_t... Is>
     int count(size_t loc, std::array<int,N> counts, std::index_sequence<Is...>) {
-        return ((current.at(loc+counts[Is]) == '#') + ...);
+        return ((directions[loc][Is] != 0 && current.at(loc+counts[Is]*(Part2 ? directions[loc][Is] : 1)) == '#') + ...);
     }
 
-    template<size_t N>
-    bool single(size_t loc, std::array<int,N> counts) {
+    template<bool Part2>
+    bool single(size_t loc) {
         switch(current[loc]) {
             case '.':
                 return false;
             case 'L':
-                return '#' == (next[loc] = (count(loc,counts,std::make_index_sequence<N>()) == 0 ? '#' : 'L'));
+                return '#' == (next[loc] = (count<Part2>(loc,dirs,std::make_index_sequence<8>()) == 0 ? '#' : 'L'));
             case '#':
-                return 'L' == (next[loc] = (count(loc,counts,std::make_index_sequence<N>()) >= 4 ? 'L' : '#'));
+                return 'L' == (next[loc] = (count<Part2>(loc,dirs,std::make_index_sequence<8>()) >= 4+Part2 ? 'L' : '#'));
         }
         return false;
     }
 
+    template<bool Part2 = false>
     bool step() {
         bool switched = false;
-        std::array count_mid{-width-1, -width, -width+1, -1, 1, width-1, width, width+1};
-        std::array count_top{-1, 1, width-1, width, width+1};
-        std::array count_bottom{-width-1, -width, -width+1, -1, 1};
-        std::array count_left{-width, -width+1, 1, width, width+1};
-        std::array count_right{-width-1, -width, -1, width-1, width};
 
-        switched |= single(0,std::array{1,width});
-        switched |= single(width-1,std::array{-1,width});
-        switched |= single((height-1)*width,std::array{-width,1});
-        switched |= single(height*width-1,std::array{-width,-1});
-
-        for(int start = (height-1)*width, i=1; i < width-1; ++i) {
-            switched |= single(i,count_top);
-            switched |= single(start+i,count_bottom);
-        }
-
-        for(int y = width; y < current.size()-width; y += width) {
-            switched |= single(y,count_left);
-            for(int x = 1; x < width-1; ++x) {
-                switched |= single(y+x,count_mid);
+        for(int y = 0; y < current.size(); y += width) {
+            for(int x = 0; x < width; ++x) {
+                switched |= single<Part2>(y+x);
             }
-            switched |= single(y+width-1,count_right);
         }
         std::swap(current,next);
         return switched;
@@ -73,7 +79,8 @@ void solution(std::string_view input) {
     std::cout << "Part 1: " << std::ranges::count(g.current,'#') << '\n';
     //Reset for part 2
     g.current = g.next = reset;
-
+    while(g.step<true>());
+    std::cout << "Part 2: " << std::ranges::count(g.current,'#') << '\n';
 }
 
 std::string_view input = R"(LLLLLLLLLLLLLLLLLLLLLLL.LLLLLLL.L.LLLLL.LLLL.LLLLLLLLL..LLL.LLLLLLLLLLLLLL.LLLLLLLLL.LLL.LLLLLL
