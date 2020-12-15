@@ -100,9 +100,10 @@ struct DisjointPartition {
     struct Node {
         AddressPattern pattern;
         bool finalized = false;
-        std::unique_ptr<std::pair<Node,Node>> children = nullptr;
+        std::pair<Node,Node>* children = nullptr;
     };
     Node root = {AddressPattern{0,(uint64_t{1} << 36)-1}};
+    std::deque<std::pair<Node,Node>> tree; //deque for pointer stability
     uint64_t total = 0;
 
     void insert(Entry e) {
@@ -111,14 +112,14 @@ struct DisjointPartition {
 
             if(n.finalized) return;
 
-            if(n.pattern == pattern && not n.children) {
+            if(n.pattern == pattern && n.children == nullptr) {
                 total += value * (1 << std::popcount(pattern.floating));
                 n.finalized = true;
                 return;
             }
 
-            if(n.children) {
-                auto& [left,right] = *n.children;
+            if(n.children != nullptr) {
+                auto& [left,right] = *(n.children);
                 if(overlaps(left.pattern,pattern)) {
                     rec(rec,left,intersect(left.pattern,pattern));
                 }
@@ -137,12 +138,12 @@ struct DisjointPartition {
                 auto new_floating = n.pattern.floating ^ mask; //remove floating bit
 
                 Node left{AddressPattern{n.pattern.fixed | (pattern.fixed & mask), new_floating}};
-                
-                rec(rec,left,pattern);
 
                 Node right{AddressPattern{left.pattern.fixed ^ mask,new_floating}}; //right node has flipped pattern
-                n.children = std::make_unique<std::pair<Node,Node>>(std::move(left),std::move(right));
-
+                
+                tree.push_back({left,right});
+                n.children = &(tree.back());
+                rec(rec,tree.back().first,pattern);
             }
         };
         insert_rec(insert_rec,root,e);
