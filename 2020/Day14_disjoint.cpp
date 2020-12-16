@@ -5,6 +5,7 @@
 #include <memory>
 #include <cassert>
 #include <ranges>
+#include <deque>
 #include <unordered_map>
 #include <bit>
 #include <charconv>
@@ -162,12 +163,6 @@ void solution(std::string_view input) {
     auto in = parse(input);
     std::cout << "Part 1: " << part1(in) << '\n';
     std::cout << "Part 2: " << part2(in) << '\n';
-
-    AddressPattern a{0b0000,0b0111};
-    AddressPattern b{0b0100,0b1001};
-    std::cout << a << ' ' << b << '\n';
-    std::cout << intersect(a,b) << '\n';
-
 }
 
 std::string_view input = R"(mask = 1X000X0101XX101101X01X101X1000111X00
