@@ -4,6 +4,7 @@
 #include <bit>
 #include <ranges>
 #include <bitset>
+#include <cassert>
 #include <charconv>
 #include <numeric>
 #include <algorithm>
@@ -107,12 +108,10 @@ auto solution(std::string_view input) {
     std::cout << "Part 1: " << total << '\n';
     std::ranges::sort(fields,{},[](auto& f) {return std::popcount(f.mask);});
     uint64_t used = 0;
-    while(std::popcount(used) != fields.size()) {
-        for(auto& f : fields) {
-            if(std::popcount(f.mask) == 1) used |= f.mask;
-            else f.mask &= ~used;
-            if(std::popcount(f.mask) == 1) used |= f.mask;
-        }
+    for(auto& f : fields) {
+        f.mask &= ~used;
+        assert(std::popcount(f.mask) == 1);
+        used |= f.mask;
     }
     uint64_t result = 1;
     for(auto field : fields) {
