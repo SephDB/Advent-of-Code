@@ -26,7 +26,6 @@ auto parse(std::string_view line) {
         }
     };
     std::vector<Element> stack = {{0,Element::Plus}};
-    uint64_t current = 0;
 
     auto collapse_muls = [&stack]() {
         stack.back().type = Element::Mul;
