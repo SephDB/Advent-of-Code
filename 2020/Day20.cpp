@@ -2036,8 +2036,10 @@ auto parse(std::string_view input) {
     return blocks;
 }
 
+using neighbors_t = std::unordered_map<uint16_t,fixed_vec<std::pair<size_t,int>,2>>;
+
 auto get_neighbors(std::vector<Block>& input) {
-    std::unordered_map<uint16_t,fixed_vec<std::pair<size_t,int>,2>> edge_neighbors;
+    neighbors_t edge_neighbors;
     for(size_t i = 0; i < input.size(); ++i) {
         for(int j = 0; j < 4; ++j) {
             uint16_t e_val = input[i].edges[j];
@@ -2102,43 +2104,48 @@ auto find_monsters(std::array<std::array<uint64_t,input_square_size>,input_squar
     return total;
 }
 
-auto part2_impl(std::vector<Block> input, const decltype(get_neighbors(input))& neighbors, size_t corner, bool flip) {
-    auto& b = input[corner];
+auto part2_impl(const std::vector<Block>& input, const neighbors_t& neighbors, size_t corner, bool flip) {
+    auto b = input[corner];
     b.toTopLeftCorner();
     if(flip) b.flipAD();
     
     std::array<std::array<uint64_t,input_square_size>,input_square_size> board;
-    std::array<std::array<size_t,input_square_size>,input_square_size> ids;
     
     board[0][0] = b.content;
-    ids[0][0] = corner;
+    
+    auto match_up = std::make_pair(corner,b.edges[3]);
+    auto match_left = std::make_pair(corner,b.edges[1]);
+
     auto lookup_key = [&](uint16_t edge) {return neighbors.find(std::min(edge,flip10(edge)))->second;};
 
     for(size_t y = 0; y < input_square_size; ++y) {
         if(y != 0) {
-            auto up = ids[y-1][0];
-            auto to_match = input[up].edges[3];
-            auto [a,b] = lookup_key(to_match).total;
-            auto [index,edge] = (up == a.first) ? b : a;
-            ids[y][0] = index;
-            input[index].alignTop(to_match,edge);
-            board[y][0] = input[index].content;
+            auto [upi,upe] = match_up;
+            auto [a,b] = lookup_key(upe).total;
+            auto [index,edge] = (upi == a.first) ? b : a;
+
+            auto current = input[index];
+            current.alignTop(upe,edge);
+            board[y][0] = current.content;
+            match_up = std::make_pair(index,current.edges[3]);
+            match_left = std::make_pair(index,current.edges[1]);
         }
         for(size_t x = 1; x < input_square_size; ++x) {
-            auto left = ids[y][x-1];
-            auto to_match = input[left].edges[1];
-            auto [a,b] = lookup_key(to_match).total;
-            auto [index,edge] = (left == a.first) ? b : a;
-            ids[y][x] = index;
-            input[index].alignLeft(to_match,edge);
-            board[y][x] = input[index].content;
+            auto [lefti, lefte] = match_left;
+            auto [a,b] = lookup_key(lefte).total;
+            auto [index,edge] = (lefti == a.first) ? b : a;
+            auto current = input[index];
+
+            current.alignLeft(lefte,edge);
+            board[y][x] = current.content;
+            match_left = std::make_pair(index,current.edges[1]);
         }
     }
 
     return find_monsters(board);
 }
 
-auto part2(std::vector<Block> input, const decltype(get_neighbors(input))& neighbors) {
+auto part2(const std::vector<Block>& input, const neighbors_t& neighbors) {
     auto total = std::transform_reduce(input.begin(),input.end(),0ul,std::plus<>{},[](auto b){return std::popcount(b.content);});
 
     auto corner = input.begin();
