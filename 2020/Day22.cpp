@@ -116,7 +116,7 @@ bool part2_impl(State& players) {
     };
 
     while(players[0].size && players[1].size) {
-        auto& lookup = state_lookup[players[0].size];
+        auto& lookup = state_lookup[players[0][0]-1];
         if(std::ranges::find(lookup,players) != lookup.end()) return true;
         lookup.push_back(players);
 
