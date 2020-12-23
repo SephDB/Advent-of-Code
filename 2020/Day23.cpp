@@ -1,11 +1,8 @@
 #include <iostream>
 #include <string>
-#include <numeric>
 #include <array>
 #include <vector>
 #include <algorithm>
-#include <memory_resource>
-#include <list>
 
 auto part1(std::string input) {
     auto next = [](char c) -> char {if (c == '1')return '9'; return c - 1; };
@@ -22,54 +19,42 @@ auto part1(std::string input) {
 }
 
 auto part2(std::string input) {
-    std::pmr::monotonic_buffer_resource mem;
-    std::pmr::list<int> cups(&mem);
-    std::vector<decltype(cups.cbegin())> lookup(1'000'000);
-    for (int i = 0; i < 9; ++i) {
-        cups.push_back(input[i] - '0');
-        lookup[input[i] - '1'] = std::prev(cups.cend());
+    std::vector<int> next(1'000'000); //forward-linked list where next[i] is i's successor
+    for (int i = 0; i < input.size() - 1; ++i) {
+        next[input[i] - '1'] = input[i + 1] - '1';
     }
-    for (int i = 10; i <= 1'000'000; ++i) {
-        cups.push_back(i);
-        lookup[i - 1] = std::prev(cups.cend());
+    next[input.back() - '1'] = input.size();
+    for (int i = input.size(); i < 999'999; ++i) {
+        next[i] = i + 1;
     }
+    next.back() = input[0] - '1';
 
-    auto next = [&cups](auto it) {
-        it = std::next(it);
-        if (it == cups.cend()) return cups.cbegin();
-        return it;
+    int current = next.back();
+
+    auto dec = [&next](int a) -> int {
+        if (a == 0) return next.size() - 1;
+        return a - 1;
     };
 
-    auto current = cups.cbegin();
-
     for (int i = 0; i < 10'000'000; ++i) {
-        std::array<int, 3> out{};
-        auto n = std::next(current);
-        for (int i = 0; i < 3; ++i) {
-            if (n == cups.cend()) {
-                n = cups.cbegin();
-                //move elements at the end to the beginning to make the splice later work well
-                cups.splice(cups.cbegin(), cups, std::next(current), cups.cend());
-            }
-            out[i] = *n;
-            ++n;
+        std::array<int, 3> following{next[current]};
+        for (int j = 1; j < 3; ++j) {
+            following[j] = next[following[j - 1]];
         }
+        auto next_round = dec(current);
+        while (std::ranges::find(following, next_round) != following.end()) next_round = dec(next_round);
 
-        int insertion = *current - 1;
-        if (insertion == 0) insertion = cups.size();
-        while (std::ranges::find(out, insertion) != out.end()) {
-            --insertion;
-            if (insertion == 0) insertion = cups.size();
-        }
-        cups.splice(next(lookup[insertion - 1]), cups, next(current), n);
+        //splice the list
+        int after = next[next_round];
+        next[current] = next[following[2]];
+        next[following[2]] = after;
+        next[next_round] = following[0];
 
-        current = next(current);
+        current = next[current];
     }
-    current = next(lookup[0]);
 
-    return int64_t{ *current } *int64_t{ *next(current) };
+    return int64_t{ next[0] } * int64_t{ next[next[0]] };
 }
-
 
 int main() {
     std::cout << "Part 1: " << part1("872495136") << '\n';
