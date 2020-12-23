@@ -22,14 +22,14 @@ auto part1(std::string input) {
 auto part2(std::string input) {
     std::pmr::monotonic_buffer_resource mem((sizeof(int)+2*sizeof(void*))*1'000'000);
     std::pmr::list<int> cups(&mem);
-    std::array<decltype(cups.cbegin()),1'000'001> lookup;
+    std::array<decltype(cups.cbegin()),1'000'000> lookup;
     for(int i = 0; i < 9; ++i) {
         cups.push_back(input[i]-'0');
-        lookup[input[i]-'0'] = std::prev(cups.cend());
+        lookup[input[i]-'1'] = std::prev(cups.cend());
     }
     for(int i = 10; i <= 1'000'000; ++i) {
         cups.push_back(i);
-        lookup[i] = std::prev(cups.cend());
+        lookup[i-1] = std::prev(cups.cend());
     }
 
     auto next = [&cups](auto it) {
@@ -59,12 +59,11 @@ auto part2(std::string input) {
             --insertion;
             if(insertion == 0) insertion = cups.size();
         }
-        cups.splice(next(lookup[insertion]),cups,next(current),n);
+        cups.splice(next(lookup[insertion-1]),cups,next(current),n);
 
         current = next(current);
     }
-    current = lookup[1];
-    ++current;
+    current = next(lookup[0]);
 
     return int64_t{*current} * int64_t{*next(current)};
 }
