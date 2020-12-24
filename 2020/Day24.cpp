@@ -90,7 +90,6 @@ auto solve(std::vector<Coord> input, int iterations) {
 }
 
 auto part2(const decltype(parse(""))& input) {
-    std::array<Coord,6> neighbors = {{{1,0},{1,-1},{0,-1},{-1,0},{-1,1},{0,1}}};
     std::vector<Coord> active(input.size());
     std::ranges::copy(input,active.begin());
     return solve(active,100);
