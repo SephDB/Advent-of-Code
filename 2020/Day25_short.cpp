@@ -7,7 +7,7 @@ int main() {
     size_t res = b;
     while(current != a) {
         current = current*7 % mod;
-        res = res*b & mod;
+        res = res*b % mod;
     }
     std::cout << res << '\n';
 }
