@@ -51,7 +51,8 @@ void solution(std::string_view input) {
                 continue;
             total++;
             for(auto d : dirs) {
-                if(board[current+d] > c) {
+                auto next = board[current+d];
+                if(next > c && next != '9') {
                     stack.push_back(current+d);
                 }
             }
