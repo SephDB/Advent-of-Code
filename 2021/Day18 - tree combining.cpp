@@ -56,7 +56,6 @@ struct SnailFish {
             while(current != values.end()) {
                 Num c = *current++;
                 c.value += add;
-                add = 0;
                 if(c.depth == 5) {
                     if(!v.empty())
                         v.back().value += c.value;
@@ -65,6 +64,7 @@ struct SnailFish {
                     add = right.value;
                 } else {
                     v.push_back(c);
+                    add = 0;
                 }
             }
             return add;
@@ -130,47 +130,39 @@ public:
     friend std::ostream& operator<<(std::ostream& o, const SnailFish& s) {
         auto current = s.number.begin();
         auto p = [&](int depth,auto&& rec) -> void {
+            auto read_val = [&]() {
+                if(current->depth == depth) {
+                    o << (current++)->value;
+                }
+                else {
+                    rec(depth+1,rec);
+                }
+            };
             o << '[';
-            if(current->depth == depth) {
-                o << current->value;
-                current++;
-            }
-            else {
-                rec(depth+1,rec);
-            }
+            read_val();
             o << ',';
-            if(current->depth == depth) {
-                o << current->value;
-                current++;
-            }
-            else {
-                rec(depth+1,rec);
-            }
+            read_val();
             o << ']';
         };
         p(1,p);
         return o;
     }
 
-    int64_t magnitude() const {
+    int magnitude() const {
         auto current = number.begin();
-        auto p = [&](int depth,auto&& rec) -> int64_t {
-            int64_t total = 0;
-            if(current->depth == depth) {
-                total += 3*current->value;
-                current++;
-            }
-            else {
-                total = 3*rec(depth+1,rec);
-            }
+        auto p = [&](int depth,auto&& rec) -> int {
+            int total = 0;
+            auto read_val = [&]() {
+                if(current->depth == depth) {
+                    return (current++)->value;
+                }
+                else {
+                    return rec(depth+1,rec);
+                }
+            };
+            total += 3*read_val();
+            total += 2*read_val();
             
-            if(current->depth == depth) {
-                total += 2*current->value;
-                current++;
-            }
-            else {
-                total += 2*rec(depth+1,rec);
-            }
             return total;
         };
         return p(1,p);
@@ -195,7 +187,7 @@ auto part1(const auto& input) {
 }
 
 auto part2(const auto& input) {
-    int64_t total = 0;
+    int total = 0;
     for(size_t i = 0; i < input.size(); ++i) {
         for(size_t j = 0; j < input.size(); ++j) {
             if(j != i) {
