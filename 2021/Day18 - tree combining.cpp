@@ -44,8 +44,14 @@ struct SnailFish {
     }
 
     SnailFish operator+(const SnailFish& other) const {
-        SnailFish next{};
-        auto add_to_next = [&,&v=next.number](const auto& values, int add = 0) {
+        if(number.empty()) {
+            //Just here to make {} + n work
+            return other;
+        }
+
+        //Pass 1: Resolve every exploding pair
+        SnailFish pass1_result{};
+        auto pass1 = [&v=pass1_result.number](const auto& values, int add = 0) {
             auto current = values.begin();
             while(current != values.end()) {
                 Num c = *current++;
@@ -56,71 +62,69 @@ struct SnailFish {
                         v.back().value += c.value;
                     v.push_back({0,4});
                     auto right = *current++;
-                    add += right.value;
+                    add = right.value;
                 } else {
-                    next.number.push_back(c);
+                    v.push_back(c);
                 }
             }
             return add;
         };
 
+        int add = pass1(number | std::views::transform([](auto n) {return Num{n.value,n.depth+1};}));
+        pass1(other.number | std::views::transform([](auto n) {return Num{n.value,n.depth+1};}),add);
 
-        if(number.empty()) {
-            return other;
+
+        SnailFish result{};
+        int extra = 0;
+        for(auto n : pass1_result.number) {
+            n.value += extra;
+            extra = result.pass2_insert(n);
         }
-        else {
-            int add = add_to_next(number | std::views::transform([](auto n) {return Num{n.value,n.depth+1};}));
-            add_to_next(other.number | std::views::transform([](auto n) {return Num{n.value,n.depth+1};}),add);
-            bool need_extra_round = false;
-            SnailFish current{};
-            std::swap(current,next);
-            do {
-                add = 0;
-                next.number.clear();
-                need_extra_round = false;
-                auto c = current.number.begin();
-                while(c != current.number.end()) {
-                    int val = c->value + add;
-                    add = 0;
-                    if(val < 10) {
-                        next.number.push_back({val,c->depth});
-                    }
-                    else {
-                        need_extra_round = true;
-                        int left = val/2;
-                        int right = val - left;
-                        if(c->depth < 4) {
-                            next.number.push_back({left,c->depth+1});
-                            next.number.push_back({right,c->depth+1});
-                        }
-                        else {
-                            next.add_explode(left);
-                            add = right;
-                        }
-                        ++c;
-                        break;
-                    }
-                    ++c;
-                }
-                while(c != current.number.end()) {
-                    int val = c->value+add;
-                    add = 0;
-                    next.number.push_back({val,c->depth});
-                    ++c;
-                }
-                std::swap(current,next);
-            } while(need_extra_round);
-            return current;
-        }
+
+        return result;
     }
 
     private:
-    int add_explode(int left) {
-        if(!number.empty()) {
-            number.back().value += left;
+    /*
+        Prerequisites:
+            - all exploding pairs in the input have already been resolved in pass 1
+        Recursion guarantees the following:
+            - all(number, n.depth <= 4 && n.value < 10)
+        => any split number inserted is the first split from the left
+            if it causes an explosion, the number pushed to the left is the leftmost possible split number(with no explosions remaining)
+        
+        on insertion of new number
+            - n < 10 => regular insertion, done
+            - n >= 10 => split
+                - depth < 4 => two insertions, done
+                - depth == 4 =>
+                    - pop vector, insert left+value
+                    - insert return of previous insert(0+inserted possible explosion)
+                    - return right
+    */
+    int pass2_insert(Num n) {
+        if(n.value < 10) {
+            number.push_back(n);
+            return 0;
+        } else {
+            int left = n.value/2;
+            int right = n.value - left;
+            if(n.depth < 4) {
+                right += pass2_insert({left,n.depth+1});
+                return pass2_insert({right,n.depth+1});
+            }
+            else {
+                Num insert{0,4};
+                if(!number.empty()) {
+                    Num back = number.back();
+                    number.pop_back();
+                    back.value += left;
+                    insert.value += pass2_insert(back);
+                }
+                right += pass2_insert(insert);
+                return right;
+            }
         }
-        number.push_back({0,4});
-        return 0;
     }
 public:
     friend std::ostream& operator<<(std::ostream& o, const SnailFish& s) {
@@ -185,12 +189,7 @@ auto parse(std::string_view input) {
 auto part1(const auto& input) {
     SnailFish total{};
     for(auto& fish : input) {
-        if(total.number.empty()) {
-            total = fish;
-        }
-        else {
-            total = total + fish;
-        }
+        total = total + fish;
     }
     return total.magnitude();
 }
