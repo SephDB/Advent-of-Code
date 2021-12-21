@@ -1,9 +1,12 @@
 #include <iostream>
 #include <array>
+#include <optional>
+#include <map>
 
 struct Player {
     int pos;
     int score = 0;
+    auto operator<=>(const Player& other) const = default;
 };
 
 auto part1(auto input) {
@@ -37,7 +40,11 @@ auto part2(auto input) {
     auto [current,next] = input;
     current.pos--;
     next.pos--;
-    auto dfs = [](Player current, Player next, auto&& rec) -> std::pair<int64_t,int64_t> {
+    std::map<std::pair<Player,Player>,std::pair<int64_t,int64_t>> cache;
+    auto dfs = [&cache](Player current, Player next, auto&& rec) -> std::pair<int64_t,int64_t> {
+        
+        if(auto f = cache.find({current,next}); f != cache.end()) return f->second;
+
         std::pair<int64_t,int64_t> wins{};
         constexpr auto rolls = roll_amounts();
         for(int rolled = 3; rolled <= 9; ++rolled) {
@@ -55,14 +62,9 @@ auto part2(auto input) {
                 wins.second += num_universes*next_wins;
             }
         }
+        cache.insert(std::pair{std::pair{current,next},wins});
         return wins;
     };
     auto [first,second] = dfs(current,next,dfs);
     return std::max(first,second);
-}
-
-int main() {
-    auto in = std::pair{Player{8},Player{2}};
-    std::cout << "Part 1: " << part1(in) << '\n';
-    std::cout << "Part 2: " << part2(in) << '\n';
 }
