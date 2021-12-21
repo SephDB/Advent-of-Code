@@ -68,3 +68,9 @@ auto part2(auto input) {
     auto [first,second] = dfs(current,next,dfs);
     return std::max(first,second);
 }
+
+int main() {
+    auto in = std::pair{Player{8},Player{2}};
+    std::cout << "Part 1: " << part1(in) << '\n';
+    std::cout << "Part 2: " << part2(in) << '\n';
+}
