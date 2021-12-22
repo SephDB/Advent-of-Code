@@ -104,27 +104,17 @@ struct Block {
     }
 
     void remove(const Block& other, auto&& foreach_new) const {
-        auto getBounds = [&](int i) {
-            return std::array<int,4> {
-                std::min(min.coords[i],other.min.coords[i]),
-                std::max(min.coords[i],other.min.coords[i]),
-                std::min(max.coords[i],other.max.coords[i]),
-                std::max(max.coords[i],other.max.coords[i])
-            };
-        };
-        auto xCoords = getBounds(0);
-        auto yCoords = getBounds(1);
-        auto zCoords = getBounds(2);
-        for(int ix = 0; ix < 3; ++ix) {
-            if(xCoords[ix] == xCoords[ix+1]) continue;
-            for(int iy = 0; iy < 3; ++iy) {
-                if(yCoords[iy] == yCoords[iy+1]) continue;
-                for(int iz = 0; iz < 3; ++iz) {
-                    if(zCoords[iz] == zCoords[iz+1]) continue;
-                    Block next{Vec3{xCoords[ix],yCoords[iy],zCoords[iz]},Vec3{xCoords[ix+1],yCoords[iy+1],zCoords[iz+1]}};
-                    if(!next.intersects(*this) || next.intersects(other)) continue;
-                    foreach_new(next);
-                }
+        auto current = *this;
+        for(int coord = 0; coord < 3; ++coord) {
+            if(current.min.coords[coord] < other.min.coords[coord]) {
+                auto next = current;
+                next.max.coords[coord] = current.min.coords[coord] = other.min.coords[coord];
+                foreach_new(next);
+            }
+            if(current.max.coords[coord] > other.max.coords[coord]) {
+                auto next = current;
+                next.min.coords[coord] = current.max.coords[coord] = other.max.coords[coord];
+                foreach_new(next);
             }
         }
     }
