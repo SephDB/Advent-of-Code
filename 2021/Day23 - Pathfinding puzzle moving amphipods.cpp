@@ -2,9 +2,7 @@
 #include <string_view>
 #include <array>
 #include <map>
-#include <optional>
 #include <queue>
-#include <charconv>
 #include <numeric>
 #include <algorithm>
 
@@ -128,6 +126,36 @@ auto solve(auto input) {
     };
 
     auto heur = [](auto& s) {return 0;}; //Dijkstra for now
+    auto heur2 = [&](auto& s) {
+        //Count minimum movement for all misplaced amphipods without taking into account any amphipod in the way
+        int total = 0;
+        std::array<int,4> room_counters{};
+        if(s.left_edge != -1) {
+            total += ((s.left_edge+1)*2 + ++room_counters[s.left_edge])*type_cost[s.left_edge];
+        }
+        if(s.right_edge != -1) {
+            total += type_cost[s.right_edge]*((4-s.right_edge)*2 + ++room_counters[s.right_edge]);
+        }
+        for(int i = 0; i < s.hallway.size(); ++i) {
+            if(s.hallway[i] != -1) {
+                int room = s.hallway[i];
+                int diff = 2*(i > room ? (i - s.hallway_right(room)) : (s.hallway_left(room) - i))+1;
+                total += type_cost[room]*(diff + ++room_counters[room]);
+            }
+        }
+        for(int room = 0; room < s.rooms.size(); ++room) {
+            for(int j = 0; j < s.rooms[room].size(); ++j) {
+                int target = s.rooms[room][j];
+                if(target != -1 && target != room) {
+                    int length = j+1;//get out
+                    length += std::abs(room-target)*2;
+                    length += ++room_counters[target];
+                    total += type_cost[target]*length;
+                }
+            }
+        }
+        return total;
+    };
 
     auto next = [&](auto state, auto&& next_f) {
         auto n = [&](auto& a, auto& b, int cost) {
@@ -219,7 +247,7 @@ auto solve(auto input) {
     };
     std::cout << '\n' << input << '\n';
 
-    auto [f,score] = As<int>(input,heur,is_goal,next);
+    auto [f,score] = As<int>(input,heur2,is_goal,next);
 
     std::cout << '\n' << f << '\n';
 
