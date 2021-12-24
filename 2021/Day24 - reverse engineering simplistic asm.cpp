@@ -69,8 +69,8 @@ int to_int(std::string_view s) {
     }
     Assumption 3: there are 7 push-only and 7 pop blocks => a pop block must never push, and thus has a fixed input number based on the corresponding push's input:
     push_input + push.B + pop.A == pop_input
-
     Helpful realization: push block is the determining factor of "largest" or "smallest" number since it's at an earlier digit
+    Assumption 4: push blocks can't push 0 on top of an empty stack => B >= 0 for those
 */
 
 struct Block {
@@ -93,10 +93,12 @@ auto parse(std::string_view input) {
         if(B > 16) std::cout << "Assumption 2 broken\n";
         if(push) {
             if(A < 10) std::cout << "Assumption 1 broken\n";
+            if(num_push == num_pop && B < 0) std::cout << "Assumption 4 broken\n";
             num_push++;
             return Block{true,B};
         }
         else {
+            if(num_pop == num_push) std::cout << "Mismatched push/pop pairs\n";
             num_pop++;
             return Block{false,A};
         }
