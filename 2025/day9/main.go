@@ -137,13 +137,19 @@ type Edge struct {
 func Part2(input parsed) int64 {
 	var result int64 = 0
 
-	slices.SortFunc(input, func(a, b coord) int {
-		return cmp.Or(cmp.Compare(a.Y, b.Y), cmp.Compare(a.X, b.X))
+	if input[0].Y != input[1].Y {
+		//rotate the loop by one to put the horizontal edges every two indices
+		input = append(input, input[0])[1:]
+	}
+
+	edges := slices.Collect(Map(slices.Chunk(input, 2), func(a []coord) Edge {
+		return Edge{a[0].Y, Interval{a[0].X, a[1].X}}
+	}))
+
+	slices.SortFunc(edges, func(a, b Edge) int {
+		return cmp.Compare(a.Y, b.Y)
 	})
 
-	edges := Map(slices.Chunk(input, 2), func(a []coord) Edge {
-		return Edge{a[0].Y, Interval{a[0].X, a[1].X}}
-	})
 	//Assuming no overlap in Y coordinates between edges, true for both test and my input
 
 	type RectCandidate struct {
@@ -155,7 +161,7 @@ func Part2(input parsed) int64 {
 
 	interior := make(Scanline, 0)
 
-	for e := range edges {
+	for e := range slices.Values(edges) {
 		interior.Update(e.size)
 
 		points := []coord{{e.size.Min, e.Y}, {e.size.Max, e.Y}}
