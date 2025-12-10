@@ -131,7 +131,7 @@ func (p Problem) Viable() bool {
 		}
 	}
 	for v := range slices.Values(p.constraints) {
-		if v.remaining < 0 || (len(v.variables) == 0 && v.remaining != 0) {
+		if v.remaining < 0 || v.GetWiggleRoom(&p) < 0 {
 			return false
 		}
 	}
@@ -147,7 +147,7 @@ func (m machine) GetProblem() Problem {
 	for i, b := range slices.All(m.buttons) {
 		max_val := 10000
 		for jolt := range slices.Values(b) {
-			max_val = max(max_val, m.jolts[jolt])
+			max_val = min(max_val, m.jolts[jolt])
 			values[jolt].variables = append(values[jolt].variables, i)
 		}
 		variables = append(variables, Variable{0, max_val, len(b)})
@@ -156,14 +156,24 @@ func (m machine) GetProblem() Problem {
 	return Problem{variables, values}
 }
 
-func (constraint *Constraint) GetWiggleRoom(p *Problem) int {
-	left := constraint.remaining
-	total_available := 0
+func (constraint *Constraint) AvailableRange(p *Problem) (int, int) {
+	min_sum := 0
+	max_sum := 0
 	for v := range slices.Values(constraint.variables) {
-		left -= p.variables[v].min
-		total_available += p.variables[v].Width()
+		min_sum += p.variables[v].min
+		max_sum += p.variables[v].max
 	}
-	return total_available - left
+	return min_sum, max_sum
+}
+
+func (constraint *Constraint) GetWiggleRoom(p *Problem) int {
+	_, max := constraint.AvailableRange(p)
+	return max - constraint.remaining
+}
+
+func (constraint *Constraint) RequiredExtra(p *Problem) int {
+	min, _ := constraint.AvailableRange(p)
+	return constraint.remaining - min
 }
 
 func (p *Problem) PropConstraints() bool {
@@ -204,9 +214,9 @@ func (p *Problem) PropConstraints() bool {
 				return true
 			}
 		} else {
-			wiggle_room := constraint.GetWiggleRoom(p)
+			min_val, max_val := constraint.AvailableRange(p)
 
-			if wiggle_room < 0 {
+			if min_val > constraint.remaining || max_val < constraint.remaining {
 				//Error out
 				constraint.remaining = -1
 				return true
@@ -214,10 +224,12 @@ func (p *Problem) PropConstraints() bool {
 
 			for v := range slices.Values(constraint.variables) {
 				variable := &p.variables[v]
-				if variable.Width() > wiggle_room {
-					//This variable needs to be used at least difference times more to make it possible to satisfy this constraint
-					difference := variable.Width() - wiggle_room
-					variable.min += difference
+				if min_val+variable.Width() > constraint.remaining {
+					variable.max -= min_val + variable.Width() - constraint.remaining
+					changed = true
+				}
+				if max_val-variable.Width() < constraint.remaining {
+					variable.min += constraint.remaining - (max_val - variable.Width())
 					changed = true
 				}
 			}
@@ -250,7 +262,7 @@ func (p Problem) ChooseBacktrackVar(currentBest int) int {
 			continue
 		}
 
-		if cmp.Or(cmp.Compare(v.Size(), current.Size()), cmp.Compare(current.numConstraints, v.numConstraints)) < 0 {
+		if cmp.Or(cmp.Compare(current.numConstraints, v.numConstraints), cmp.Compare(v.Size(), current.Size())) < 0 {
 			current = v
 			currentIndex = i
 		}
@@ -266,6 +278,25 @@ func (p Problem) CurrentMinimum() int {
 	return res
 }
 
+func (p Problem) CurrentPressed() int {
+	res := 0
+	for v := range slices.Values(p.variables) {
+		if v.min == v.max {
+			res += v.min
+		}
+	}
+	return res
+}
+
+func (p Problem) Solved() bool {
+	for v := range slices.Values(p.variables) {
+		if v.min != v.max {
+			return false
+		}
+	}
+	return true
+}
+
 func (p Problem) Solve(currentBest int) int {
 	for p.PropConstraints() {
 		if !p.Viable() {
@@ -274,24 +305,25 @@ func (p Problem) Solve(currentBest int) int {
 		}
 	}
 
-	if p.CurrentMinimum() >= currentBest {
+	if p.Solved() {
+		return min(p.CurrentMinimum(), currentBest)
+	}
+
+	requiredPresses := slices.Collect(Map(slices.Values(p.constraints), func(c Constraint) int { return c.RequiredExtra(&p) }))
+
+	if p.CurrentMinimum()+slices.Max(requiredPresses) >= currentBest {
 		//Impossible to do better from this point, return instead of backtracking
 		return currentBest
 	}
 
 	backtracker := p.ChooseBacktrackVar(currentBest)
-	if backtracker == -1 {
-		//fmt.Println("Solution found:", p)
-		//No backtracking variable found, all vars have their value
-		return p.CurrentMinimum()
-	}
 
 	for val := range p.variables[backtracker].Size() {
 		v := p.variables[backtracker].max - val
 		p2 := p.Clone()
 		p2.variables[backtracker].max = v
 		p2.variables[backtracker].min = v
-		currentBest = p2.Solve(currentBest)
+		currentBest = min(p2.Solve(currentBest), currentBest)
 	}
 
 	return currentBest
