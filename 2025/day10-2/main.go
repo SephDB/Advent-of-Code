@@ -319,7 +319,7 @@ func (p Problem) Solve(currentBest int) int {
 	backtracker := p.ChooseBacktrackVar(currentBest)
 
 	for val := range p.variables[backtracker].Size() {
-		v := p.variables[backtracker].max - val
+		v := p.variables[backtracker].min + val
 		p2 := p.Clone()
 		p2.variables[backtracker].max = v
 		p2.variables[backtracker].min = v
@@ -332,13 +332,14 @@ func (p Problem) Solve(currentBest int) int {
 func Part2(input parsed) int64 {
 	var result int64 = 0
 
-	for m := range slices.Values(input) {
+	for i, m := range slices.All(input) {
 		p := m.GetProblem()
 		max := 0
 		for j := range slices.Values(m.jolts) {
 			max += j
 		}
 		res := p.Solve(max)
+		fmt.Println("Solved", i, "Result:", res)
 		result += int64(res)
 	}
 
